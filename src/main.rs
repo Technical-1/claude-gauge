@@ -195,69 +195,219 @@ fn account_lines(s: &AccountStatus, sessions: Option<&[sessions::Session]>) -> V
 ///
 /// The map is rebuilt with the menu: muda hands out fresh ids each time, so a
 /// stale map would silently raise the wrong session after any refresh.
-fn build_menu(
+/// Everything the menu will display, computed before any UI object is touched.
+///
+/// Separating "what to show" from "the menu that shows it" is what stops the
+/// menu closing under you. macOS closes an open menu when its NSMenu is
+/// replaced, and the old code replaced it on every refresh — including the many
+/// refreshes where nothing had changed. With the content in hand first, the
+/// update path can ask two cheap questions: did anything change at all, and can
+/// the change be applied without swapping the menu.
+#[derive(PartialEq)]
+struct Rendered {
+    accounts: Vec<RenderedAccount>,
+    odometer: Option<String>,
+    title: String,
+}
+
+#[derive(PartialEq)]
+struct RenderedAccount {
+    header: String,
+    sessions: Vec<RenderedSession>,
+    details: Vec<String>,
+}
+
+#[derive(PartialEq)]
+struct RenderedSession {
+    label: String,
+    enabled: bool,
+    tty: Option<String>,
+}
+
+impl Rendered {
+    /// The item layout, ignoring every string. Two renders sharing a shape reuse
+    /// the same menu items and can be updated in place; a different shape means
+    /// items must be added or removed, which needs a rebuild.
+    ///
+    /// A header flips between a plain item and a submenu when an account's
+    /// session count crosses zero — captured here because the session count is
+    /// part of the shape.
+    fn shape(&self) -> (Vec<(usize, usize)>, bool) {
+        (
+            self.accounts
+                .iter()
+                .map(|a| (a.sessions.len(), a.details.len()))
+                .collect(),
+            self.odometer.is_some(),
+        )
+    }
+}
+
+fn render(
     statuses: &[AccountStatus],
     all_sessions: Option<&[sessions::Session]>,
     odo: tokens::Tokens,
-) -> (Menu, MenuItem, MenuItem, CheckMenuItem, HashMap<MenuId, String>) {
+) -> Rendered {
+    let accounts = statuses
+        .iter()
+        .map(|s| {
+            let mine: Option<Vec<sessions::Session>> = all_sessions.map(|all| {
+                all.iter()
+                    .filter(|x| x.root_label == s.label)
+                    .cloned()
+                    .collect()
+            });
+            let lines = account_lines(s, mine.as_deref());
+            RenderedAccount {
+                header: lines[0].clone(),
+                sessions: mine
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|x| RenderedSession {
+                        label: x.label(),
+                        enabled: x.raisable,
+                        tty: if x.raisable { x.tty.clone() } else { None },
+                    })
+                    .collect(),
+                details: lines[1..].to_vec(),
+            }
+        })
+        .collect();
+
+    let odometer = (odo.input > 0 || odo.output > 0).then(|| {
+        format!(
+            "Tokens all time      \u{2191} {}   \u{2193} {}",
+            tokens::human(odo.input),
+            tokens::human(odo.output)
+        )
+    });
+
+    Rendered { accounts, odometer, title: title(statuses) }
+}
+
+/// A header is a submenu when the account has sessions to list, a plain readout
+/// otherwise. Both need their text updated in place, so they are held together.
+enum Header {
+    Plain(MenuItem),
+    Sub(Submenu),
+}
+
+impl Header {
+    fn set_text(&self, text: &str) {
+        match self {
+            Header::Plain(m) => m.set_text(text),
+            Header::Sub(s) => s.set_text(text),
+        }
+    }
+}
+
+/// Retained handles to every item, so text can change without rebuilding.
+struct Handles {
+    headers: Vec<Header>,
+    sessions: Vec<Vec<MenuItem>>,
+    details: Vec<Vec<MenuItem>>,
+    odometer: Option<MenuItem>,
+    refresh: MenuItem,
+    quit: MenuItem,
+    login: CheckMenuItem,
+    raise_map: HashMap<MenuId, String>,
+}
+
+impl Handles {
+    /// Apply new text to the existing items. Never replaces the NSMenu, so an
+    /// open menu stays open — the whole point.
+    ///
+    /// Only valid when the shapes match. Position `j` may now hold a
+    /// *different* session than last time (one ended and another started, in
+    /// equal numbers), so the tty mapping is rewritten rather than assumed stable.
+    fn update(&mut self, r: &Rendered) {
+        for (i, acc) in r.accounts.iter().enumerate() {
+            self.headers[i].set_text(&acc.header);
+            for (j, sess) in acc.sessions.iter().enumerate() {
+                let item = &self.sessions[i][j];
+                item.set_text(&sess.label);
+                item.set_enabled(sess.enabled);
+                match &sess.tty {
+                    Some(tty) => {
+                        self.raise_map.insert(item.id().clone(), tty.clone());
+                    }
+                    None => {
+                        self.raise_map.remove(item.id());
+                    }
+                }
+            }
+            for (j, line) in acc.details.iter().enumerate() {
+                self.details[i][j].set_text(line);
+            }
+        }
+        if let (Some(item), Some(text)) = (&self.odometer, &r.odometer) {
+            item.set_text(text);
+        }
+        self.login.set_checked(autostart::is_enabled());
+    }
+}
+
+fn build_menu(r: &Rendered) -> (Menu, Handles) {
     let menu = Menu::new();
-    let mut raise_map: HashMap<MenuId, String> = HashMap::new();
+    let mut h = Handles {
+        headers: Vec::new(),
+        sessions: Vec::new(),
+        details: Vec::new(),
+        odometer: None,
+        refresh: MenuItem::new("Refresh now", true, None),
+        quit: MenuItem::new("Quit", true, None),
+        login: CheckMenuItem::new("Start at login", true, autostart::is_enabled(), None),
+        raise_map: HashMap::new(),
+    };
 
-    for s in statuses {
-        let mine: Option<Vec<&sessions::Session>> = all_sessions
-            .map(|all| all.iter().filter(|x| x.root_label == s.label).collect());
-        let owned: Option<Vec<sessions::Session>> =
-            mine.as_ref().map(|v| v.iter().map(|x| (*x).clone()).collect());
-        let lines = account_lines(s, owned.as_deref());
-
-        // The account header becomes a submenu when there are sessions to list.
-        if owned.as_deref().unwrap_or(&[]).is_empty() {
-            menu.append(&MenuItem::new(&lines[0], false, None)).ok();
+    for acc in &r.accounts {
+        if acc.sessions.is_empty() {
+            let item = MenuItem::new(&acc.header, false, None);
+            menu.append(&item).ok();
+            h.headers.push(Header::Plain(item));
+            h.sessions.push(Vec::new());
         } else {
-            let sub = Submenu::new(&lines[0], true);
-            for sess in owned.as_deref().unwrap_or(&[]) {
+            let sub = Submenu::new(&acc.header, true);
+            let mut items = Vec::new();
+            for sess in &acc.sessions {
                 // A session with no controlling terminal still burns quota, so it
                 // is listed — just not clickable, because there is no tab to
                 // raise. Hiding it would make the submenu disagree with the count.
-                let item = MenuItem::new(sess.label(), sess.raisable, None);
-                if let (true, Some(tty)) = (sess.raisable, &sess.tty) {
-                    raise_map.insert(item.id().clone(), tty.clone());
+                let item = MenuItem::new(&sess.label, sess.enabled, None);
+                if let Some(tty) = &sess.tty {
+                    h.raise_map.insert(item.id().clone(), tty.clone());
                 }
                 sub.append(&item).ok();
+                items.push(item);
             }
             menu.append(&sub).ok();
+            h.headers.push(Header::Sub(sub));
+            h.sessions.push(items);
         }
 
-        for line in &lines[1..] {
-            menu.append(&MenuItem::new(line, false, None)).ok();
+        let mut rows = Vec::new();
+        for line in &acc.details {
+            let item = MenuItem::new(line, false, None);
+            menu.append(&item).ok();
+            rows.push(item);
         }
+        h.details.push(rows);
         menu.append(&PredefinedMenuItem::separator()).ok();
     }
 
-    // Lifetime total across every account, appended once at the bottom.
-    if odo.input > 0 || odo.output > 0 {
-        menu.append(&MenuItem::new(
-            format!(
-                "Tokens all time      ↑ {}   ↓ {}",
-                tokens::human(odo.input),
-                tokens::human(odo.output)
-            ),
-            false,
-            None,
-        ))
-        .ok();
+    if let Some(text) = &r.odometer {
+        let item = MenuItem::new(text, false, None);
+        menu.append(&item).ok();
         menu.append(&PredefinedMenuItem::separator()).ok();
+        h.odometer = Some(item);
     }
 
-    let refresh = MenuItem::new("Refresh now", true, None);
-    let login = CheckMenuItem::new("Start at login", true, autostart::is_enabled(), None);
-    let quit = MenuItem::new("Quit", true, None);
-    menu.append(&refresh).ok();
-    menu.append(&login).ok();
+    menu.append(&h.refresh).ok();
+    menu.append(&h.login).ok();
     menu.append(&about_item()).ok();
     menu.append(&PredefinedMenuItem::separator()).ok();
-    menu.append(&quit).ok();
-    (menu, refresh, quit, login, raise_map)
+    menu.append(&h.quit).ok();
+    (menu, h)
 }
 
 /// Accounts are polled with a gap between them. Three requests fired back to back
@@ -431,19 +581,17 @@ fn main() {
     // Accessory: menubar only, no Dock icon, no app-switcher entry.
     event_loop.set_activation_policy(ActivationPolicy::Accessory);
 
-    let (menu, refresh_item, quit_item, login_item, mut raise_map) =
-        build_menu(
+    let mut last = render(
         &statuses.lock().unwrap(),
         sess.lock().unwrap().as_deref(),
         *odo.lock().unwrap(),
     );
-    let mut login_id = login_item.id().clone();
-    let mut refresh_id = refresh_item.id().clone();
-    let mut quit_id = quit_item.id().clone();
+    let (menu, mut handles) = build_menu(&last);
+    let first_title = last.title.clone();
 
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_title(title(&statuses.lock().unwrap()))
+        .with_title(first_title)
         .with_tooltip("Claude usage")
         .build()
         .expect("failed to create tray icon");
@@ -454,14 +602,14 @@ fn main() {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(500));
 
         while let Ok(ev) = menu_rx.try_recv() {
-            if ev.id == quit_id {
+            if ev.id == *handles.quit.id() {
                 std::process::exit(0);
             }
-            if ev.id == refresh_id {
+            if ev.id == *handles.refresh.id() {
                 *statuses.lock().unwrap() = poll_all_forced(&roots);
                 *dirty.lock().unwrap() = true;
             }
-            if ev.id == login_id {
+            if ev.id == *handles.login.id() {
                 // muda has already flipped the check state, so act on the NEW value.
                 let want = !autostart::is_enabled();
                 let r = if want { autostart::enable() } else { autostart::disable() };
@@ -475,7 +623,7 @@ fn main() {
             // Clicking a session brings its Terminal tab to the front. A failure
             // is surfaced, never swallowed — a denied Automation permission would
             // otherwise look like a dead menu item.
-            if let Some(tty) = raise_map.get(&ev.id)
+            if let Some(tty) = handles.raise_map.get(&ev.id)
                 && let Err(e) = terminal::raise(tty) {
                     notify::post("Claude Usage", &e);
                 }
@@ -483,15 +631,33 @@ fn main() {
 
         let mut d = dirty.lock().unwrap();
         if *d {
-            let s = statuses.lock().unwrap();
-            let (menu, refresh_item, quit_item, login_item, fresh_map) = build_menu(&s, sess.lock().unwrap().as_deref(), *odo.lock().unwrap());
-            refresh_id = refresh_item.id().clone();
-            quit_id = quit_item.id().clone();
-            login_id = login_item.id().clone();
-            raise_map = fresh_map;
-            tray.set_menu(Some(Box::new(menu)));
-            tray.set_title(Some(title(&s)));
             *d = false;
+            let fresh = render(
+                &statuses.lock().unwrap(),
+                sess.lock().unwrap().as_deref(),
+                *odo.lock().unwrap(),
+            );
+
+            // 1. Nothing changed — touch nothing. Most refreshes land here: the
+            //    session list is usually identical and quota only moves on the
+            //    300s tick. Replacing the menu to install identical content was
+            //    what closed an open menu every 60 seconds.
+            if fresh != last {
+                if fresh.shape() == last.shape() {
+                    // 2. Same items, new text: update in place. Does NOT replace
+                    //    the NSMenu, so a menu you have open stays open.
+                    handles.update(&fresh);
+                } else {
+                    // 3. Items were added or removed — a session started or
+                    //    ended. Only this needs a rebuild, and only this can
+                    //    close the menu.
+                    let (menu, fresh_handles) = build_menu(&fresh);
+                    handles = fresh_handles;
+                    tray.set_menu(Some(Box::new(menu)));
+                }
+                tray.set_title(Some(fresh.title.clone()));
+                last = fresh;
+            }
         }
     });
 }

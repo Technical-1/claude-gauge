@@ -211,6 +211,22 @@ explain that Automation permission is needed.
 
 Requires macOS Automation permission, prompted on first click.
 
+### Why the menu does not close while you are in it
+
+macOS closes an open menu when its `NSMenu` is replaced, so a refresh that swaps
+the menu closes any submenu you are hovering. The update path therefore does the
+least it can:
+
+1. **Nothing changed** — touch nothing. Most refreshes land here; the session
+   list is usually identical and quota only moves on its own 300s tick.
+2. **Same items, new text** — `set_text` in place. This does not replace the
+   `NSMenu`, so an open menu stays open.
+3. **Items added or removed** — a session started or ended, or a row appeared.
+   Only this rebuilds, and only this can close the menu.
+
+`Rendered::shape()` decides between 2 and 3: it compares the item *layout*,
+ignoring every string.
+
 ### Refresh cadence
 
 Sessions refresh every **60s**, independently of quota's 300s — they cost no

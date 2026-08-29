@@ -142,9 +142,39 @@ fn status(label: &str, state: State, age_s: i64) -> AccountStatus {
     AccountStatus { label: label.to_string(), state, age_s, sessions: None, session_list: Vec::new(), burn: None }
 }
 
+/// The five-hour window, which is what a rate is worth quoting for.
+///
+/// NOT the worst window. Tracking "worst" meant that on an account whose weekly
+/// was pinned at 100%, the rate described the weekly — flat only because it was at
+/// the ceiling — while its five-hour could be climbing unseen. The five-hour is
+/// also the only one that moves fast enough for a 15-minute sample to say anything.
+fn five_hour(ws: &[crate::usage::Window]) -> Option<&crate::usage::Window> {
+    ws.iter()
+        .find(|w| crate::usage::canonical(&w.name) == "five_hour")
+}
+
+/// Rate plus a projection, with the projection dropped when the window resets
+/// first.
+///
+/// Without this, an account at 25% rising 10%/hr whose window resets in 44
+/// minutes was told it would be "full in 7h 52m" — a wall it can never hit,
+/// because the window empties long before. Quoting an exhaustion time past the
+/// reset is projecting a future that gets cancelled.
+fn burn_for(e: &crate::cache::Entry, now: i64) -> Option<(f64, Option<i64>)> {
+    let (rate, eta) = e.burn()?;
+    let until_reset = five_hour(&e.windows)
+        .and_then(|w| w.resets_at)
+        .map(|t| t.timestamp() - now);
+    let eta = match (eta, until_reset) {
+        (Some(secs), Some(reset)) if secs >= reset => None,
+        (e, _) => e,
+    };
+    Some((rate, eta))
+}
+
 fn from_cache(root: &Root, e: &crate::cache::Entry, now: i64) -> AccountStatus {
     let mut st = status(&root.label, State::Ok(e.windows.clone()), e.age(now));
-    st.burn = e.burn();
+    st.burn = burn_for(e, now);
     st
 }
 
@@ -208,8 +238,14 @@ fn poll_inner(root: &Root, force: bool) -> AccountStatus {
                         .map(|w| w.pct)
                         .fold(f64::NEG_INFINITY, f64::max);
 
+                    // History tracks the five-hour window specifically; `worst`
+                    // still drives the walled/freed notification, which is about
+                    // whether the account is usable at all.
+                    if let Some(w) = five_hour(&ws) {
+                        entry.push_history(now, w.pct);
+                    }
+
                     if worst.is_finite() {
-                        entry.push_history(now, worst);
                         if entry.was_walled && worst < FREED_PCT {
                             entry.was_walled = false;
                             crate::notify::post(
@@ -230,7 +266,7 @@ fn poll_inner(root: &Root, force: bool) -> AccountStatus {
                     entry.strikes = 0;
                     crate::cache::store(root, &entry);
                     let mut st = status(&root.label, State::Ok(ws), 0);
-                    st.burn = entry.burn();
+                    st.burn = burn_for(&entry, now);
                     st
                 }
                 Err(crate::usage::FetchError::RateLimited { retry_after }) => {

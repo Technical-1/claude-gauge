@@ -153,23 +153,17 @@ fn account_lines(s: &AccountStatus) -> Vec<String> {
                 ));
             }
             // Directly under the quota rows, because it is derived from them.
-            // Three states, and the third is the point: absent means "not measured
-            // yet", which is not the same claim as "flat".
-            match s.burn {
-                Some((rate, _)) if rate < 0.5 => out.push("      — steady".into()),
-                Some((rate, eta)) => {
-                    let when = match eta {
-                        Some(secs) if secs < 86_400 * 7 => format!(
-                            " · full in {}",
-                            usage::until(
-                                chrono::Utc::now() + chrono::Duration::seconds(secs)
-                            )
-                        ),
-                        _ => String::new(),
-                    };
-                    out.push(format!("      ▲ {rate:.0}%/hr{when}"));
-                }
-                None => {}
+            // Shown only when the five-hour window is measurably filling; nothing
+            // to say means no row.
+            if let Some((rate, eta)) = s.burn {
+                let when = match eta {
+                    Some(secs) => format!(
+                        " · full in {}",
+                        usage::until(chrono::Utc::now() + chrono::Duration::seconds(secs))
+                    ),
+                    None => String::new(),
+                };
+                out.push(format!("      ▲ {rate:.0}%/hr on 5-hour{when}"));
             }
             if s.age_s > STALE_AFTER_S {
                 out.push(format!("      cached {}m ago — backing off", s.age_s / 60));

@@ -19,7 +19,8 @@ countdowns.
 - **One glance, every account** — worst gauged window per account in the menubar
 - **Session list per account** — running sessions named by project and title, with
   a live working/idle mark; click one to bring its terminal window to the front
-- **Burn rate** — `▲ 24%/hr · full in 3h 29m` when an account is measurably filling
+- **Burn rate** — `▲ 24%/hr on 5-hour · full in 2h 55m` when an account is
+  measurably filling, with the projection suppressed if the window resets first
 - **Lifetime odometer** — a running total of every token ever processed, across
   all accounts, at the bottom of the menu
 - **Distinct failure states** — not-signed-in, expired, and rate-limited each read
@@ -180,7 +181,7 @@ spent is appended to `~/.config/claude-usage/requests.log`.
       ✳ ai-lab — AI project management at scale
       Weekly          100%   ↻ 1d 4h
       5-hour            6%   ↻ 1h 44m
-      ▲ 24%/hr · full in 3h 29m
+      ▲ 24%/hr on 5-hour · full in 2h 55m
 ```
 
 ### Deduplicated windows
@@ -219,16 +220,25 @@ Requires macOS Automation permission, prompted on first click.
 
 ### Burn rate
 
-Three states, and the third is the point:
+```
+▲ 24%/hr on 5-hour · full in 2h 55m
+```
 
-| Row | Meaning |
-|---|---|
-| `▲ 24%/hr · full in 3h 29m` | measurably filling, with a projection |
-| `— steady` | measured, and not filling |
-| *(absent)* | **not measured yet** — fewer than 3 samples, or under 15 minutes |
+Shown only when the five-hour window is measurably filling: at least 3 samples
+spanning 15 minutes, rising faster than 0.5%/hr. Otherwise there is no row —
+"nothing is happening" is not worth a line.
 
-An account at 95% and *steady* is safe to use; one at 95% with no reading yet is
-unknown. Rendering those the same way would be a lie of omission.
+**The rate tracks `five_hour` specifically, not the worst window.** Tracking
+the worst meant that on an account whose weekly was pinned at 100%, the rate
+described the weekly — flat only because it was at the ceiling — while its
+five-hour could be climbing unseen. The five-hour is also the only window that
+moves fast enough for a 15-minute sample to say anything.
+
+**The projection is dropped when the window resets first.** An account at 25%
+rising 10%/hr whose window resets in 44 minutes was previously told it would be
+"full in 7h 52m" — a wall it can never hit, because the window empties long
+before. Quoting an exhaustion time past the reset projects a future that gets
+cancelled.
 
 The span floor is not optional. Quota readings dither by a point or two, and
 differencing two adjacent samples turns that noise into a confident-looking

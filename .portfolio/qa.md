@@ -38,12 +38,12 @@ Each account opens a submenu of its running sessions, named by project directory
 and session title, with a live working/idle indicator. Clicking one brings its
 terminal window to the front.
 
-### Burn rate with a projection
-When an account is measurably filling, the menu shows `▲ 24%/hr · full in 3h 29m`;
-when it is measured and flat, `— steady`; when there is not yet enough history,
-nothing at all. A percentage tells you where you are; a rate tells you whether an
-account will survive the next two hours — and the third state matters because
-"measured and safe" must not look like "no idea yet".
+### Burn rate with a reset-aware projection
+When the five-hour window is measurably filling, the menu shows
+`▲ 24%/hr on 5-hour · full in 2h 55m`. A percentage tells you where you are; a
+rate tells you whether the account survives the next two hours. The projection is
+withheld when the window resets before the projected exhaustion — quoting a wall
+that gets cancelled by a reset is worse than quoting nothing.
 
 ### A lifetime token odometer
 A running total of every token ever processed across all accounts — data the usage
@@ -76,6 +76,15 @@ this by tty: `ps -o tty=` gives one per process, and Terminal exposes a title pe
 tab keyed by the same tty. The direct alternatives fail — transcripts are appended
 and closed rather than held open, so `lsof` reveals nothing, and "newest transcript
 in this folder" is ambiguous precisely when several sessions share a directory.
+
+### Measuring the window that can actually move
+The burn rate tracks `five_hour`, not the worst window. Tracking the worst seemed
+natural — it is what drives the headline number — but on an account whose weekly
+sits at 100%, the "worst" window is flat *because it is at the ceiling*, so the
+rate reported nothing while the five-hour climbed unseen. The five-hour is also
+the only window that moves fast enough for a 15-minute sample to be meaningful.
+`burn_for()` in `src/accounts.rs` additionally drops the exhaustion projection
+when the window resets before it, since a wall that a reset cancels is not a wall.
 
 ### An odometer that is incremental and never rewinds
 A lifetime token total cannot re-parse a gigabyte of transcripts every five

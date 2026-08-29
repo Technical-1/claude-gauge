@@ -30,7 +30,7 @@ pub struct Entry {
     /// Consecutive 429s, for exponential backoff when there is no Retry-After.
     #[serde(default)]
     pub strikes: u32,
-    /// (epoch seconds, worst gauged pct) samples, for the burn rate.
+    /// (epoch seconds, five_hour pct) samples, for the burn rate.
     /// Bounded — see HISTORY_MAX.
     #[serde(default)]
     pub history: Vec<(i64, f64)>,
@@ -61,13 +61,10 @@ impl Entry {
 
     /// Percentage points per hour, and seconds until 100% at that rate.
     ///
-    /// `None` means NOT MEASURED — too few samples, or too short a span. That is
-    /// deliberately distinct from `Some((0.0, None))`, which means measured and
-    /// flat. An account sitting at 95% and steady is safe to use; one at 95% with
-    /// no reading yet is unknown, and the two must not render the same way.
-    ///
-    /// A rate from two adjacent noisy samples is worse than no rate at all, which
-    /// is why the span floor exists.
+    /// `None` when there is nothing worth saying: too few samples, too short a
+    /// span, or not measurably rising. A row that reports "nothing is happening"
+    /// is clutter, and a rate derived from two adjacent noisy samples is worse
+    /// than no rate at all — which is why the span floor exists.
     pub fn burn(&self) -> Option<(f64, Option<i64>)> {
         if self.history.len() < 3 {
             return None;
@@ -80,9 +77,9 @@ impl Entry {
         }
         let rate = (p1 - p0) / (span as f64 / 3600.0);
         // Quota does not un-consume, so a negative rate is a window reset or
-        // noise, never a real decline — report it as flat rather than as falling.
+        // noise, never a real decline. Flat is not news; say nothing.
         if rate < 0.5 {
-            return Some((0.0, None));
+            return None;
         }
         let remaining = 100.0 - p1;
         let eta = if remaining > 0.0 {

@@ -173,17 +173,3 @@ pub fn list(roots: &[Root]) -> Option<Vec<Session>> {
             .collect(),
     )
 }
-
-/// `Some(map)` — counts per root label, zero included.
-/// `None`      — enumeration failed. NOT the same as "no sessions".
-///
-/// Derived from `list()` so the header count and the submenu contents can never
-/// disagree — two independent enumerations would eventually drift.
-pub fn counts(roots: &[Root], sessions: Option<&[Session]>) -> Option<HashMap<String, usize>> {
-    let sessions = sessions?;
-    let mut map: HashMap<String, usize> = roots.iter().map(|r| (r.label.clone(), 0)).collect();
-    for s in sessions {
-        *map.entry(s.root_label.clone()).or_insert(0) += 1;
-    }
-    Some(map)
-}

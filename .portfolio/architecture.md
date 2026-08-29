@@ -107,11 +107,13 @@ flowchart TD
 
 ## Data Flow
 
-1. A 300-second timer fires on a background thread — the UI thread never blocks
-   on a network call.
-2. Sessions are enumerated once for the whole batch: one `ps` call for pids, ttys
-   and environment, one `lsof` call for every working directory, and one
-   AppleScript call for every Terminal tab title.
+1. Two independent timers run on their own threads, so the UI thread never blocks
+   on a network call: sessions every 60 seconds, quota every 300. Session data
+   costs no requests, so it is not held to the request budget.
+2. A session pass is three calls totalling ~147ms: one `ps` for pids, ttys and
+   environment, one `lsof` for every working directory, and one AppleScript that
+   fetches every tab's tty and title in **two bulk property reads** rather than a
+   round-trip per property.
 3. For each configured account: if the cached reading is inside the freshness
    floor, or the account is in backoff, it is served from disk and no request is
    spent.

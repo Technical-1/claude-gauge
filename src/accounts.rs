@@ -69,17 +69,8 @@ pub struct AccountStatus {
     /// fresh, or because we are backing off and chose to show the last good
     /// value rather than blanking the meter.
     pub age_s: i64,
-    /// Running Claude Code sessions on this account.
-    ///
-    /// `None` means "could not determine", NOT zero. Rendering a confident `0`
-    /// when enumeration failed would be a silent lie, which is the one failure
-    /// mode a meter must not have.
-    pub sessions: Option<usize>,
     /// (points/hour, seconds until 100%) when a real rising trend is measured.
     pub burn: Option<(f64, Option<i64>)>,
-    /// The sessions themselves, for this account's submenu. Empty when
-    /// enumeration failed — `sessions` is what distinguishes that from zero.
-    pub session_list: Vec<crate::sessions::Session>,
 }
 
 impl AccountStatus {
@@ -139,7 +130,7 @@ const BACKOFF_BASE_S: i64 = 300;
 const BACKOFF_MAX_S: i64 = 1800;
 
 fn status(label: &str, state: State, age_s: i64) -> AccountStatus {
-    AccountStatus { label: label.to_string(), state, age_s, sessions: None, session_list: Vec::new(), burn: None }
+    AccountStatus { label: label.to_string(), state, age_s, burn: None }
 }
 
 /// The five-hour window, which is what a rate is worth quoting for.

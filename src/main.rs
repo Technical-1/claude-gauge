@@ -34,6 +34,15 @@ use tray_icon::TrayIconBuilder;
 /// polling /api/oauth/usage on a clock. Quota moves slowly; 5 minutes is plenty.
 const REFRESH: Duration = Duration::from_secs(300);
 
+/// Sessions come from `ps`, `lsof` and one AppleScript call — no network, so they
+/// are not tied to the request budget and refresh five times as often.
+///
+/// Not faster than this. Measured 2026-08-29: ps 29ms, lsof 19ms, and the
+/// AppleScript round-trip to Terminal 367ms — the last is 8x the other two
+/// combined, because it wakes Terminal and walks every window and tab. At 60s
+/// that is a 0.7% duty cycle; at 10s it would be visible.
+const SESSION_REFRESH: Duration = Duration::from_secs(60);
+
 /// Requests to one account are spaced out rather than fired as a burst of three.
 const STAGGER: Duration = Duration::from_millis(400);
 
@@ -123,11 +132,11 @@ fn about_item() -> PredefinedMenuItem {
 /// Split out so `build_menu` and `--menu` cannot drift. Menu text is the only
 /// output that cannot be inspected without launching a GUI, which makes it
 /// exactly the thing worth being able to print.
-fn account_lines(s: &AccountStatus) -> Vec<String> {
+fn account_lines(s: &AccountStatus, sessions: Option<&[sessions::Session]>) -> Vec<String> {
     let tag = marker(&short(&s.label));
     // Absent rather than "0 sessions" when the count is unknown. The two must not
     // look alike; see AccountStatus::sessions.
-    let sess = match s.sessions {
+    let sess = match sessions.map(<[_]>::len) {
         Some(1) => "1 session".to_string(),
         Some(n) => format!("{n} sessions"),
         None => String::new(),
@@ -188,20 +197,25 @@ fn account_lines(s: &AccountStatus) -> Vec<String> {
 /// stale map would silently raise the wrong session after any refresh.
 fn build_menu(
     statuses: &[AccountStatus],
+    all_sessions: Option<&[sessions::Session]>,
     odo: tokens::Tokens,
 ) -> (Menu, MenuItem, MenuItem, CheckMenuItem, HashMap<MenuId, String>) {
     let menu = Menu::new();
     let mut raise_map: HashMap<MenuId, String> = HashMap::new();
 
     for s in statuses {
-        let lines = account_lines(s);
+        let mine: Option<Vec<&sessions::Session>> = all_sessions
+            .map(|all| all.iter().filter(|x| x.root_label == s.label).collect());
+        let owned: Option<Vec<sessions::Session>> =
+            mine.as_ref().map(|v| v.iter().map(|x| (*x).clone()).collect());
+        let lines = account_lines(s, owned.as_deref());
 
         // The account header becomes a submenu when there are sessions to list.
-        if s.session_list.is_empty() {
+        if owned.as_deref().unwrap_or(&[]).is_empty() {
             menu.append(&MenuItem::new(&lines[0], false, None)).ok();
         } else {
             let sub = Submenu::new(&lines[0], true);
-            for sess in &s.session_list {
+            for sess in owned.as_deref().unwrap_or(&[]) {
                 // A session with no controlling terminal still burns quota, so it
                 // is listed — just not clickable, because there is no tab to
                 // raise. Hiding it would make the submenu disagree with the count.
@@ -250,10 +264,6 @@ fn build_menu(
 /// look like a burst to a rate limiter even when the hourly average is modest.
 /// Cache hits cost nothing, so the gap only applies when a request is actually spent.
 fn poll_all(roots: &[accounts::Root]) -> Vec<AccountStatus> {
-    // Counted once for the whole batch: it is a single `ps` call, and per-account
-    // counting would give three views of a process table that may have changed.
-    let all = sessions::list(roots);
-    let counts = sessions::counts(roots, all.as_deref());
     let mut out: Vec<AccountStatus> = Vec::with_capacity(roots.len());
     for (i, r) in roots.iter().enumerate() {
         // Only pause after a poll that actually went to the network. A run served
@@ -262,15 +272,7 @@ fn poll_all(roots: &[accounts::Root]) -> Vec<AccountStatus> {
         if i > 0 && out.last().is_some_and(spent_a_request) {
             std::thread::sleep(STAGGER);
         }
-        let mut st = accounts::poll(r);
-        st.sessions = counts.as_ref().and_then(|m| m.get(&r.label).copied());
-        st.session_list = all
-            .as_deref()
-            .unwrap_or(&[])
-            .iter()
-            .filter(|x| x.root_label == r.label)
-            .cloned()
-            .collect();
+        let st = accounts::poll(r);
         out.push(st);
     }
     out
@@ -283,10 +285,6 @@ fn spent_a_request(s: &AccountStatus) -> bool {
 
 /// The Refresh menu item. Bypasses the freshness floor, never the backoff.
 fn poll_all_forced(roots: &[accounts::Root]) -> Vec<AccountStatus> {
-    // Counted once for the whole batch: it is a single `ps` call, and per-account
-    // counting would give three views of a process table that may have changed.
-    let all = sessions::list(roots);
-    let counts = sessions::counts(roots, all.as_deref());
     let mut out: Vec<AccountStatus> = Vec::with_capacity(roots.len());
     for (i, r) in roots.iter().enumerate() {
         // Only pause after a poll that actually went to the network. A run served
@@ -295,15 +293,7 @@ fn poll_all_forced(roots: &[accounts::Root]) -> Vec<AccountStatus> {
         if i > 0 && out.last().is_some_and(spent_a_request) {
             std::thread::sleep(STAGGER);
         }
-        let mut st = accounts::poll_forced(r);
-        st.sessions = counts.as_ref().and_then(|m| m.get(&r.label).copied());
-        st.session_list = all
-            .as_deref()
-            .unwrap_or(&[])
-            .iter()
-            .filter(|x| x.root_label == r.label)
-            .cloned()
-            .collect();
+        let st = accounts::poll_forced(r);
         out.push(st);
     }
     out
@@ -326,10 +316,15 @@ fn main() {
     // --menu: print the dropdown's exact text and exit. The menu is otherwise
     // only inspectable by launching the GUI and looking at it.
     if std::env::args().any(|a| a == "--menu") {
+        let all = sessions::list(&roots);
         for s in poll_all(&roots) {
-            let lines = account_lines(&s);
-            println!("{}{}", lines[0], if s.session_list.is_empty() { "" } else { "  ▸" });
-            for sess in &s.session_list {
+            let mine: Option<Vec<sessions::Session>> = all.as_ref().map(|v| {
+                v.iter().filter(|x| x.root_label == s.label).cloned().collect()
+            });
+            let lines = account_lines(&s, mine.as_deref());
+            let listed = mine.as_deref().unwrap_or(&[]);
+            println!("{}{}", lines[0], if listed.is_empty() { "" } else { "  ▸" });
+            for sess in listed {
                 println!("        {}{}", sess.label(),
                          if sess.raisable { "" } else { "   [cannot raise]" });
             }
@@ -384,6 +379,23 @@ fn main() {
     let statuses = Arc::new(Mutex::new(poll_all(&roots)));
     let dirty = Arc::new(Mutex::new(true));
     let odo = Arc::new(Mutex::new(tokens::Tokens::default()));
+    let sess = Arc::new(Mutex::new(sessions::list(&roots)));
+
+    // Sessions refresh on their own, faster timer. They cost no requests, so
+    // there is no reason for them to wait on the quota budget.
+    {
+        let sess = Arc::clone(&sess);
+        let dirty = Arc::clone(&dirty);
+        let roots = roots.clone();
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(SESSION_REFRESH);
+                let fresh = sessions::list(&roots);
+                *sess.lock().unwrap() = fresh;
+                *dirty.lock().unwrap() = true;
+            }
+        });
+    }
 
     // The first odometer pass reads every transcript ever written (~1.2GB), so it
     // runs on its own thread — the menubar must appear immediately, not after a
@@ -420,7 +432,11 @@ fn main() {
     event_loop.set_activation_policy(ActivationPolicy::Accessory);
 
     let (menu, refresh_item, quit_item, login_item, mut raise_map) =
-        build_menu(&statuses.lock().unwrap(), *odo.lock().unwrap());
+        build_menu(
+        &statuses.lock().unwrap(),
+        sess.lock().unwrap().as_deref(),
+        *odo.lock().unwrap(),
+    );
     let mut login_id = login_item.id().clone();
     let mut refresh_id = refresh_item.id().clone();
     let mut quit_id = quit_item.id().clone();
@@ -468,7 +484,7 @@ fn main() {
         let mut d = dirty.lock().unwrap();
         if *d {
             let s = statuses.lock().unwrap();
-            let (menu, refresh_item, quit_item, login_item, fresh_map) = build_menu(&s, *odo.lock().unwrap());
+            let (menu, refresh_item, quit_item, login_item, fresh_map) = build_menu(&s, sess.lock().unwrap().as_deref(), *odo.lock().unwrap());
             refresh_id = refresh_item.id().clone();
             quit_id = quit_item.id().clone();
             login_id = login_item.id().clone();

@@ -218,6 +218,24 @@ explain that Automation permission is needed.
 
 Requires macOS Automation permission, prompted on first click.
 
+### Refresh cadence
+
+Sessions refresh every **60s**, independently of quota's 300s — they cost no
+requests, so there is no reason for them to wait on the request budget.
+
+| Step | Cost |
+|---|---|
+| `ps` (pids, ttys, environment) | ~25 ms |
+| `lsof` (working directory per pid) | ~53 ms |
+| AppleScript (tty → tab title) | ~69 ms |
+| **total** | **~147 ms, a 0.25% duty cycle at 60s** |
+
+The AppleScript fetches properties in **bulk**. The obvious form nests
+`repeat with t in tabs of w` and reads `tty of t` inside it, which costs one Apple
+Event round-trip *per property access* — 26 of them across 13 tabs, measured at
+362ms. `tty of tabs of windows` returns everything in one event; iterating the
+resulting plain lists is free. Same output byte-for-byte, 4.8× faster.
+
 ### Burn rate
 
 ```

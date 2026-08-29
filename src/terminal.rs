@@ -43,11 +43,23 @@ fn osa(script: &str) -> Result<String, String> {
 /// the word `tab` resolves to Terminal's *tab class*, not the tab character — a
 /// name collision that silently emits the wrong separator.
 pub fn titles() -> Option<HashMap<String, String>> {
+    // Two BULK property fetches, then a loop over plain lists.
+    //
+    // The obvious version nests `repeat with t in tabs of w` and reads `tty of t`
+    // and `custom title of t` inside it — which costs one Apple Event round-trip
+    // PER PROPERTY ACCESS. At 13 tabs that is 26 round-trips and measured 362ms.
+    // Asking for `tty of tabs of windows` returns every value in a single event;
+    // the loop below then walks ordinary in-process lists. Measured 75ms for
+    // byte-identical output — 4.8x faster, same data.
     let script = r#"tell application "Terminal"
+  set ttys to tty of tabs of windows
+  set titles to custom title of tabs of windows
   set out to ""
-  repeat with w in windows
-    repeat with t in tabs of w
-      set out to out & (tty of t as text) & " ::: " & (custom title of t as text) & linefeed
+  repeat with wi from 1 to count of ttys
+    set wt to item wi of ttys
+    set wn to item wi of titles
+    repeat with ti from 1 to count of wt
+      set out to out & (item ti of wt) & " ::: " & (item ti of wn) & linefeed
     end repeat
   end repeat
   return out

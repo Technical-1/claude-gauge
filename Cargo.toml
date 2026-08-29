@@ -1,0 +1,21 @@
+[package]
+name = "claude-usage"
+version = "1.0.0"
+edition = "2024"
+authors = ["Jacob Kanfer"]
+description = "macOS menubar quota meter for several Claude Code accounts at once"
+repository = "https://github.com/Technical-1/claude-usage"
+license = "MIT"
+readme = "README.md"
+keywords = ["macos", "menubar", "quota", "tray"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+chrono = { version = "0.4.45", features = ["serde"] }
+libc = "0.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+tao = "0.37.0"
+tray-icon = "0.24.2"
+ureq = "3.4.0"

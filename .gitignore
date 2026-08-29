@@ -1,0 +1,5 @@
+/target
+/dist
+*.p8
+*.iconset/
+.DS_Store

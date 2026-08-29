@@ -24,7 +24,9 @@ flowchart TD
     subgraph LOCAL["Local, zero-network signals"]
         SESS[sessions.rs — process enumeration]
         TERM[terminal.rs — AppleScript bridge]
-        TOK[tokens.rs — transcript scan]
+        TOK[tokens.rs — transcript parsing]
+        ODO[odometer.rs — incremental lifetime total]
+        NOTE[notify.rs — macOS notifications]
     end
 
     KC[(macOS Keychain)]
@@ -42,10 +44,12 @@ flowchart TD
     SESS --> PS
     SESS --> TERM
     TERM <--> TAB
+    ODO --> TOK
     TOK --> FS
+    CACHE --> NOTE
     ACC --> MENU
     SESS --> MENU
-    TOK --> MENU
+    ODO --> MENU
     MENU -->|click a session| TERM
 ```
 
@@ -84,8 +88,22 @@ flowchart TD
 - **Purpose**: Everything the app knows without touching the network.
 - **Location**: `src/sessions.rs`, `src/terminal.rs`, `src/tokens.rs`
 - **Key responsibilities**: Enumerate running sessions and attribute them to
-  accounts; read and raise Terminal tabs over AppleScript; sum token usage from
-  session transcripts inside a time window.
+  accounts; read and raise Terminal tabs over AppleScript; walk transcripts
+  recursively and parse their per-message usage blocks.
+
+### Odometer
+- **Purpose**: A lifetime total of every token ever processed, across all accounts.
+- **Location**: `src/odometer.rs`
+- **Key responsibilities**: Track a byte offset per transcript so each pass reads
+  only newly appended data, stop at the last complete line, and persist totals
+  that never decrease.
+
+### Notifications
+- **Purpose**: Tell you when a walled account becomes usable again.
+- **Location**: `src/notify.rs`
+- **Key responsibilities**: Post via `osascript`, passing text through `on run
+  argv` rather than interpolating it into the script — a value containing a quote
+  must not be able to change what the script does.
 
 ## Data Flow
 
@@ -101,7 +119,9 @@ flowchart TD
    and the usage endpoint is called.
 5. The result updates the cache, appends to the burn-rate history, and may fire a
    notification if the account has transitioned from walled to available.
-6. Token totals are summed from transcripts modified inside the window.
+6. The odometer folds any newly appended transcript bytes into its running
+   totals. Its first pass reads the whole corpus and runs on its own thread, so
+   the menubar is never held up by it.
 7. The menu and menubar title are rebuilt from the assembled statuses.
 
 ## External Integrations
@@ -176,6 +196,33 @@ flowchart TD
   producing rows that appear and vanish between refreshes. Unknown keys fail
   *visible* rather than hidden, so a limit the API starts returning surfaces
   instead of being silently dropped.
+
+### Measuring the rate on the window that can move
+- **Context**: A burn rate needs a series to difference, and the app tracks
+  several quota windows per account.
+- **Decision**: The history samples `five_hour` specifically, and the projection
+  is withheld when the window resets before the projected exhaustion.
+- **Rationale**: The obvious basis is the *worst* window, since that drives the
+  headline. It fails on exactly the account that matters: with a weekly pinned at
+  100%, the worst window is flat *because it is at the ceiling*, so the rate
+  reports nothing while the five-hour climbs unseen. The five-hour is also the
+  only window that moves fast enough for a fifteen-minute sample to mean anything.
+  Separately, an account rising 10%/hr whose window resets in 44 minutes was being
+  told it would be "full in 7h 52m" — a wall it can never reach, because the
+  window empties first. A projection that a reset cancels is worse than none.
+
+### An incremental odometer rather than a repeated full scan
+- **Context**: A lifetime token total needs every transcript ever written —
+  currently ~8,400 files and over a gigabyte, and growing forever.
+- **Decision**: Persist a byte offset per file and read only what is new, counting
+  through the last complete line. Deleted transcripts keep their contribution.
+- **Rationale**: Rescanning everything each refresh is affordable today (a few
+  seconds) but grows without bound and would burn that cost every five minutes
+  forever. Transcripts are append-only, so offsets are sound. Two details are
+  load-bearing: stopping at the last newline, because a file being written can end
+  mid-line and advancing past it would drop those tokens permanently rather than
+  picking them up next pass; and never subtracting for a deleted file, because an
+  odometer measures what was spent, not what still exists.
 
 ### An allow-list of meaningful windows, not a deny-list of noisy ones
 - **Context**: The response carries several undocumented keys that have always

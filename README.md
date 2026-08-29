@@ -321,7 +321,8 @@ claude-usage/
 │   ├── cache.rs        # per-account cache, backoff, burn-rate history
 │   ├── sessions.rs     # running-session enumeration and attribution
 │   ├── terminal.rs     # AppleScript: read tab titles, raise a tab
-│   ├── tokens.rs       # windowed token totals from transcripts
+│   ├── tokens.rs       # recursive transcript walk, usage parsing
+│   ├── odometer.rs     # incremental lifetime token total
 │   ├── notify.rs       # macOS notifications
 │   ├── instance.rs     # single-instance guard (flock)
 │   └── autostart.rs    # LaunchAgent write/remove

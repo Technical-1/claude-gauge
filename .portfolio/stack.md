@@ -13,8 +13,11 @@
 ## Application Structure
 
 - **Rendering**: Native macOS menu items — no custom drawing, no web view
-- **Concurrency**: One background thread for polling, `Arc<Mutex<…>>` for shared
-  state, and a dirty flag so the menu is only rebuilt when something changed
+- **Concurrency**: Three background threads, `Arc<Mutex<…>>` for shared state, and
+  a dirty flag so the menu is only rebuilt when something changed. Split by what
+  each costs: sessions every 60s (local calls only), quota every 300s (the only
+  thing spending requests), and a one-shot thread for the odometer's first
+  full-corpus pass so the menubar is never held up by it
 - **Persistence**: JSON files under `~/.config/claude-usage/`
 - **Windows**: None. The app creates no window; the About panel is the system's own
 
@@ -30,8 +33,12 @@
 
 ## Infrastructure
 
-- **Distribution**: Developer ID signed, notarized and stapled `.app` bundle
-- **Build**: `build-app.sh` — bundle, sign, notarize, staple, verify, install
+- **Distribution**: Developer ID signed, notarized and stapled `.app` bundle,
+  packaged as a zip built *after* stapling so recipients get the ticket inside the
+  bundle rather than a first launch that has to reach Apple
+- **Build**: `build-app.sh` — bundle, sign, notarize, staple, verify, package,
+  install. Verifies the artifact as a download (quarantine-tagged, unpacked
+  elsewhere), not only in place
 - **CI/CD**: None. Personal tool, built and released from one machine
 - **Monitoring**: An append-only request log, so rate-limit questions can be
   answered from data rather than recollection

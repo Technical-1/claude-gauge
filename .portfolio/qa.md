@@ -69,22 +69,23 @@ exponential backoff that honours `Retry-After`, and the last good reading so a
 transient refusal never blanks the display. The Refresh menu item deliberately
 bypasses the freshness floor but **not** the backoff.
 
-### Joining processes to windows through the tty
-Listing sessions by name, and raising the right window on click, requires matching
-a running process to a terminal tab. `src/sessions.rs` and `src/terminal.rs` do
-this by tty: `ps -o tty=` gives one per process, and Terminal exposes a title per
-tab keyed by the same tty. The direct alternatives fail — transcripts are appended
-and closed rather than held open, so `lsof` reveals nothing, and "newest transcript
-in this folder" is ambiguous precisely when several sessions share a directory.
+### Naming and reaching sessions through the tty
+Listing sessions with meaningful names, and raising the right window on click,
+means matching a running process to a terminal tab. `src/sessions.rs` and
+`src/terminal.rs` join on tty: `ps -o tty=` gives one per process, and Terminal
+exposes a title per tab keyed by the same tty. Every alternative I measured
+fails — transcripts are appended and closed rather than held open, so `lsof`
+reveals nothing, and matching a process to a transcript by start time is clean
+for an isolated session (5s versus 11,765s to the runner-up) but a coin flip for
+three concurrent sessions in one directory (55s versus 70s).
 
-### Measuring the window that can actually move
-The burn rate tracks `five_hour`, not the worst window. Tracking the worst seemed
-natural — it is what drives the headline number — but on an account whose weekly
-sits at 100%, the "worst" window is flat *because it is at the ceiling*, so the
-rate reported nothing while the five-hour climbed unseen. The five-hour is also
-the only window that moves fast enough for a 15-minute sample to be meaningful.
-`burn_for()` in `src/accounts.rs` additionally drops the exhaustion projection
-when the window resets before it, since a wall that a reset cancels is not a wall.
+Two details make it correct and cheap. Processes are matched on `comm` being
+exactly the CLI's name: matching the command line instead counts shell wrappers
+that inherit the account environment variable, which over-reported eleven
+sessions as thirteen. And the AppleScript fetches every tab's tty and title in
+two bulk property reads rather than a nested loop — a nested loop costs one Apple
+Event round-trip *per property access*, which measured 362ms against 75ms for
+byte-identical output.
 
 ### An odometer that is incremental and never rewinds
 A lifetime token total cannot re-parse a gigabyte of transcripts every five
@@ -94,14 +95,6 @@ first pass and 0.6s afterwards. Two details matter — reading stops at the last
 *complete* line, because a file being written can end mid-line and advancing past
 it would drop those tokens permanently; and a deleted transcript keeps its
 contribution, because an odometer measures what was spent, not what still exists.
-
-### Counting sessions without counting the wrong things
-Matching processes by command line over-counts badly: shell processes inherit the
-environment variable that identifies an account, so a single session can appear as
-several. `src/sessions.rs` matches on `comm` being exactly the CLI's name, which
-was verified against a per-process check before shipping. The count is an
-`Option`, and a failure to enumerate renders as *nothing* rather than as zero —
-a leading indicator that lies is worse than one that is absent.
 
 ## Engineering Decisions
 
@@ -186,10 +179,14 @@ instead of adding a duplicate menubar item. The lock is an advisory `flock` rath
 than a PID file, so it cannot go stale — the kernel releases it even if the app is
 force-quit.
 
-### Why is there no window, not even for About?
-The app runs with an accessory activation policy, so it has no Dock icon and no
-window. The About panel is macOS's own standard panel, which the menu library can
-open directly — that removed the last reason to create a window at all.
+### Can I give the built app to someone else?
+Yes — `build-app.sh` produces a signed, notarized and **stapled** zip that runs on
+a Mac that has never seen it, offline. Stapling matters: notarization uploads a
+zip built *before* the ticket exists, and shipping that same zip hands the
+recipient an unstapled app whose first launch has to reach Apple to verify. The
+build keeps the submission and release copies separate, then verifies the release
+one the way a recipient receives it — tagged with `com.apple.quarantine`,
+unpacked elsewhere, and checked with `spctl` and `stapler`.
 
 ### How do I add or remove an account?
 Edit `~/.config/claude-usage/roots.json`. It is seeded on first run from whatever

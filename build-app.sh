@@ -20,7 +20,12 @@ PROFILE="${NOTARY_PROFILE:-claude-usage}"
 VERSION="$(awk -F'"' '/^version =/{print $2; exit}' Cargo.toml)"
 
 APP="dist/${APP_NAME}.app"
-ZIP="dist/${APP_NAME// /-}-${VERSION}.zip"
+# Two different zips on purpose. The submission copy goes to Apple BEFORE the
+# ticket exists; the release copy is made AFTER stapling so it carries the ticket
+# inside the bundle. Shipping the submission zip means every recipient's first
+# launch has to reach Apple to verify — slow at best, a failure offline.
+SUBMIT_ZIP="dist/.submit-${VERSION}.zip"
+DIST_ZIP="dist/${APP_NAME// /-}-${VERSION}.zip"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 NOTARIZE=1; ICON=0; INSTALL=0; SIGN=1
@@ -107,9 +112,9 @@ fi
 # ── notarize ────────────────────────────────────────────────────────────────
 if [ "$NOTARIZE" = 1 ]; then
   say "Notarizing (this takes a few minutes)"
-  rm -f "$ZIP"
-  ditto -c -k --keepParent "$APP" "$ZIP"
-  if ! xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait; then
+  rm -f "$SUBMIT_ZIP"
+  ditto -c -k --keepParent "$APP" "$SUBMIT_ZIP"
+  if ! xcrun notarytool submit "$SUBMIT_ZIP" --keychain-profile "$PROFILE" --wait; then
     echo "notarization failed — fetching log for the most recent submission" >&2
     id=$(xcrun notarytool history --keychain-profile "$PROFILE" 2>/dev/null \
          | awk '/id: /{print $2; exit}')
@@ -124,6 +129,23 @@ if [ "$NOTARIZE" = 1 ]; then
   say "Verifying"
   spctl -a -vvv -t install "$APP"
   xcrun stapler validate "$APP"
+
+  # Release artifact, built from the stapled bundle.
+  say "Packaging $DIST_ZIP"
+  rm -f "$SUBMIT_ZIP" "$DIST_ZIP"
+  ditto -c -k --keepParent "$APP" "$DIST_ZIP"
+
+  # The only check that reflects a recipient's experience: mark the artifact as
+  # downloaded from the internet, unpack it somewhere else, and ask Gatekeeper.
+  # Verifying the app we just built in place proves nothing about that.
+  say "Verifying as a download"
+  tmp="$(mktemp -d)"
+  cp "$DIST_ZIP" "$tmp/dl.zip"
+  xattr -w com.apple.quarantine "0083;00000000;Safari;" "$tmp/dl.zip"
+  ditto -x -k "$tmp/dl.zip" "$tmp/out"
+  spctl -a -vvv -t install "$tmp/out/${APP_NAME}.app"
+  xcrun stapler validate "$tmp/out/${APP_NAME}.app"
+  rm -rf "$tmp"
 fi
 
 # ── install ─────────────────────────────────────────────────────────────────

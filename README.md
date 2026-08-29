@@ -79,8 +79,22 @@ xcrun notarytool store-credentials "claude-usage" \
 ./build-app.sh --install
 ```
 
+This produces `dist/Claude-Usage-<version>.zip`, a signed, notarized and
+**stapled** bundle that runs on any Mac.
+
 Verify with `spctl`, not by launching it. A bundle always launches on the
 machine that built it, notarized or not, so a successful launch proves nothing.
+
+**The release zip is built after stapling, not before.** Notarization needs a
+zip uploaded to Apple *before* the ticket exists; shipping that same zip hands
+recipients an unstapled app, forcing Gatekeeper to reach Apple on first launch —
+slow at best, a failure offline. The script keeps the two separate and packages
+the release copy from the stapled bundle.
+
+The build also verifies the artifact **as a download**: it tags the zip with
+`com.apple.quarantine`, unpacks it elsewhere, and runs `spctl` and `stapler`
+against that copy. Checking the bundle you just built in place says nothing about
+what a recipient sees.
 
 ### Usage
 

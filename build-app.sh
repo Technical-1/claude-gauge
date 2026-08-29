@@ -14,10 +14,22 @@ cd "$(dirname "$0")"
 
 APP_NAME="Claude Usage"
 BUNDLE_ID="com.technical1.claude-usage"
-# No default identity on purpose: a hardcoded one means someone else's build
-# silently tries to sign as its author and fails somewhere confusing.
-IDENTITY="${SIGN_IDENTITY:-}"
-PROFILE="${NOTARY_PROFILE:-claude-usage}"
+# Signing identity and notary profile, in precedence order:
+#   1. SIGN_IDENTITY / NOTARY_PROFILE in the environment
+#   2. ~/.apple-signing/, the machine-local credential store
+#   3. error (identity) or a sensible default (profile)
+#
+# Nothing is hardcoded here on purpose. A baked-in identity means someone else's
+# build silently tries to sign as this file's author and fails somewhere
+# unhelpful; and the store already holds these, so repeating them invites drift.
+#
+# Read, never echoed. Everything under ~/.apple-signing/ may be substituted
+# into a command but must not be printed.
+read_secret() { [ -f "$HOME/.apple-signing/$1" ] && cat "$HOME/.apple-signing/$1"; }
+
+IDENTITY="${SIGN_IDENTITY:-$(read_secret APPLE_SIGNING_IDENTITY)}"
+PROFILE="${NOTARY_PROFILE:-$(read_secret APPLE_NOTARY_PROFILE)}"
+PROFILE="${PROFILE:-claude-usage}"
 VERSION="$(awk -F'"' '/^version =/{print $2; exit}' Cargo.toml)"
 
 APP="dist/${APP_NAME}.app"
@@ -103,7 +115,8 @@ if [ "$SIGN" = 0 ]; then
   say "Skipping signing (--no-sign): local iteration build"
 else
 if [ -z "$IDENTITY" ]; then
-  echo "SIGN_IDENTITY is not set. Either:" >&2
+  echo "No signing identity. Either:" >&2
+  echo "  put it in ~/.apple-signing/APPLE_SIGNING_IDENTITY" >&2
   echo "  export SIGN_IDENTITY=\"Developer ID Application: Your Name (TEAMID)\"" >&2
   echo "  ...or build unsigned with --no-sign" >&2
   exit 1

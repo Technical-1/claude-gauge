@@ -68,11 +68,10 @@ cargo build --release
 ./build-app.sh --no-sign --install     # unsigned, local use
 ```
 
-For a signed build, set your own Developer ID and a stored notarytool profile:
+For a signed build, the script takes your Developer ID and notarytool profile
+from `~/.apple-signing/`, or from `SIGN_IDENTITY` / `NOTARY_PROFILE` if set:
 
 ```sh
-export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-export NOTARY_PROFILE="claude-usage"
 ./build-app.sh --install
 ```
 

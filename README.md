@@ -20,7 +20,9 @@ countdowns.
 - **Session list per account** — running sessions named by project and title, with
   a live working/idle mark; click one to bring its terminal window to the front
 - **Burn rate** — `▲ 24%/hr · full in 3h 29m` when an account is measurably filling
-- **Token counts** — tokens processed this window, read from session transcripts
+- **Token counts** — tokens processed this window, per account
+- **Lifetime odometer** — a running total of every token ever processed, across
+  all accounts, at the bottom of the menu
 - **Distinct failure states** — not-signed-in, expired, and rate-limited each read
   differently, because each has a different fix
 - **Rate-limit aware** — a shared request budget, exponential backoff, and
@@ -231,6 +233,16 @@ information.
 
 Summed from `<root>/projects/**/*.jsonl`, which carry a `usage` block per message.
 
+**Independent of the burn rate.** The burn rate is derived from quota
+percentages; token counts are parsed from transcripts. They sit in that order in
+the menu — quota rows, then the rate derived from them, then the token figure —
+because adjacency was implying a relationship the two do not have.
+
+The walk must **recurse**. Transcripts are not all two levels deep: subagent
+runs live at `projects/<slug>/<session-id>/subagents/agent-*.jsonl` and carry
+their own usage blocks. A `projects/*/*.jsonl` walk silently missed 2,270 files in
+one root and 527 in another.
+
 **Windowed, not total.** The full corpus runs to gigabytes across thousands of
 files; only files modified inside the window are opened — 16 files / 21MB / 0.11s
 for 5 hours.
@@ -240,6 +252,26 @@ for 5 hours.
 ~150×, so including them yields a number that mostly measures cache hits.
 
 **These do not track the quota percentage** and cannot be derived from it.
+
+### The odometer
+
+The bottom of the menu carries a lifetime total across every account:
+
+```
+Tokens all time      ↑ 2.1B   ↓ 291.7M
+```
+
+Transcripts are append-only, so it is incremental: `~/.config/claude-usage/odometer.json`
+records how far into each transcript has already been counted, and later passes
+read only the newly appended bytes. Measured: 5.4s for the first full pass over
+8,400 files, 0.6s thereafter. The first pass runs on its own thread so the
+menubar appears immediately rather than after a full-corpus scan.
+
+**An odometer never goes down.** A deleted transcript keeps its contribution —
+those tokens really were spent. Only the per-file offsets are pruned.
+
+Reading stops at the last *complete* line. A transcript being written right now
+can end mid-line; advancing past it would drop that line's tokens permanently.
 
 ## Run at login
 

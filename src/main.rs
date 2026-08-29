@@ -12,6 +12,7 @@ mod autostart;
 mod cache;
 mod instance;
 mod notify;
+mod odometer;
 mod sessions;
 mod tokens;
 mod terminal;
@@ -151,14 +152,10 @@ fn account_lines(s: &AccountStatus) -> Vec<String> {
                     reset
                 ));
             }
-            if s.tokens.input > 0 || s.tokens.output > 0 {
-                out.push(format!(
-                    "      tokens 5h      ↑ {}  ↓ {}",
-                    tokens::human(s.tokens.input),
-                    tokens::human(s.tokens.output)
-                ));
-            }
-            // Rate first, projection second: "full in 3h" is the actionable half.
+            // Burn rate sits directly under the quota rows because it is derived
+            // from them. The token figure is an INDEPENDENT measurement from the
+            // transcripts and goes last — adjacency was implying a relationship
+            // between the two that does not exist.
             if let Some((rate, eta)) = s.burn {
                 let when = match eta {
                     Some(secs) if secs < 86_400 * 7 => {
@@ -168,6 +165,13 @@ fn account_lines(s: &AccountStatus) -> Vec<String> {
                     _ => String::new(),
                 };
                 out.push(format!("      ▲ {rate:.0}%/hr{when}"));
+            }
+            if s.tokens.input > 0 || s.tokens.output > 0 {
+                out.push(format!(
+                    "      tokens 5h      ↑ {}  ↓ {}",
+                    tokens::human(s.tokens.input),
+                    tokens::human(s.tokens.output)
+                ));
             }
             if s.age_s > STALE_AFTER_S {
                 out.push(format!("      cached {}m ago — backing off", s.age_s / 60));
@@ -192,6 +196,7 @@ fn account_lines(s: &AccountStatus) -> Vec<String> {
 /// stale map would silently raise the wrong session after any refresh.
 fn build_menu(
     statuses: &[AccountStatus],
+    odo: tokens::Tokens,
 ) -> (Menu, MenuItem, MenuItem, CheckMenuItem, HashMap<MenuId, String>) {
     let menu = Menu::new();
     let mut raise_map: HashMap<MenuId, String> = HashMap::new();
@@ -220,6 +225,21 @@ fn build_menu(
         for line in &lines[1..] {
             menu.append(&MenuItem::new(line, false, None)).ok();
         }
+        menu.append(&PredefinedMenuItem::separator()).ok();
+    }
+
+    // Lifetime total across every account, appended once at the bottom.
+    if odo.input > 0 || odo.output > 0 {
+        menu.append(&MenuItem::new(
+            format!(
+                "Tokens all time      ↑ {}   ↓ {}",
+                tokens::human(odo.input),
+                tokens::human(odo.output)
+            ),
+            false,
+            None,
+        ))
+        .ok();
         menu.append(&PredefinedMenuItem::separator()).ok();
     }
 
@@ -328,7 +348,11 @@ fn main() {
             }
             println!("{}", "-".repeat(46));
         }
-        println!("Refresh now\nAbout Claude Usage\n\nQuit");
+        let odo = odometer::update(&roots);
+        println!("Tokens all time      ↑ {}   ↓ {}",
+                 tokens::human(odo.input), tokens::human(odo.output));
+        println!("{}", "-".repeat(46));
+        println!("Refresh now\nStart at login\nAbout Claude Usage\n\nQuit");
         return;
     }
 
@@ -369,16 +393,34 @@ fn main() {
 
     let statuses = Arc::new(Mutex::new(poll_all(&roots)));
     let dirty = Arc::new(Mutex::new(true));
+    let odo = Arc::new(Mutex::new(tokens::Tokens::default()));
+
+    // The first odometer pass reads every transcript ever written (~1.2GB), so it
+    // runs on its own thread — the menubar must appear immediately, not after a
+    // full-corpus scan. Later passes only read newly appended bytes.
+    {
+        let odo = Arc::clone(&odo);
+        let dirty = Arc::clone(&dirty);
+        let roots = roots.clone();
+        std::thread::spawn(move || {
+            let t = odometer::update(&roots);
+            *odo.lock().unwrap() = t;
+            *dirty.lock().unwrap() = true;
+        });
+    }
 
     // Network off the UI thread. A hung request must never freeze the menubar.
     {
         let statuses = Arc::clone(&statuses);
         let dirty = Arc::clone(&dirty);
         let roots = roots.clone();
+        let odo = Arc::clone(&odo);
         std::thread::spawn(move || loop {
             std::thread::sleep(REFRESH);
             let fresh = poll_all(&roots);
+            let t = odometer::update(&roots);
             *statuses.lock().unwrap() = fresh;
+            *odo.lock().unwrap() = t;
             *dirty.lock().unwrap() = true;
         });
     }
@@ -388,7 +430,7 @@ fn main() {
     event_loop.set_activation_policy(ActivationPolicy::Accessory);
 
     let (menu, refresh_item, quit_item, login_item, mut raise_map) =
-        build_menu(&statuses.lock().unwrap());
+        build_menu(&statuses.lock().unwrap(), *odo.lock().unwrap());
     let mut login_id = login_item.id().clone();
     let mut refresh_id = refresh_item.id().clone();
     let mut quit_id = quit_item.id().clone();
@@ -436,7 +478,7 @@ fn main() {
         let mut d = dirty.lock().unwrap();
         if *d {
             let s = statuses.lock().unwrap();
-            let (menu, refresh_item, quit_item, login_item, fresh_map) = build_menu(&s);
+            let (menu, refresh_item, quit_item, login_item, fresh_map) = build_menu(&s, *odo.lock().unwrap());
             refresh_id = refresh_item.id().clone();
             quit_id = quit_item.id().clone();
             login_id = login_item.id().clone();

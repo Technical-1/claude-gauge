@@ -43,9 +43,10 @@ When an account is measurably filling, the menu shows `▲ 24%/hr · full in 3h 
 A percentage tells you where you are; a rate tells you whether an account will
 survive the next two hours.
 
-### Token counts per account
-Tokens processed in the current window, read from session transcripts on disk —
-data the usage endpoint does not expose.
+### Token counts and a lifetime odometer
+Tokens processed in the current window per account, plus a running total of every
+token ever processed across all accounts — data the usage endpoint does not
+expose at all.
 
 ## Technical Highlights
 
@@ -72,6 +73,15 @@ this by tty: `ps -o tty=` gives one per process, and Terminal exposes a title pe
 tab keyed by the same tty. The direct alternatives fail — transcripts are appended
 and closed rather than held open, so `lsof` reveals nothing, and "newest transcript
 in this folder" is ambiguous precisely when several sessions share a directory.
+
+### An odometer that is incremental and never rewinds
+A lifetime token total cannot re-parse a gigabyte of transcripts every five
+minutes. `src/odometer.rs` exploits the fact that transcripts are append-only:
+it records a byte offset per file and reads only what is new, taking 5.4s on the
+first pass and 0.6s afterwards. Two details matter — reading stops at the last
+*complete* line, because a file being written can end mid-line and advancing past
+it would drop those tokens permanently; and a deleted transcript keeps its
+contribution, because an odometer measures what was spent, not what still exists.
 
 ### Counting sessions without counting the wrong things
 Matching processes by command line over-counts badly: shell processes inherit the

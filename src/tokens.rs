@@ -13,7 +13,7 @@
 //! and caching in ways the transcripts do not expose. They are complementary
 //! figures, not two views of the same thing. Do not try to derive one from the other.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Tokens {
@@ -34,48 +34,66 @@ fn add_usage(t: &mut Tokens, u: &serde_json::Value) {
     t.output += g("output_tokens");
 }
 
+/// Every `.jsonl` under `<root>/projects`, at any depth.
+///
+/// Must recurse. Transcripts are NOT all two levels deep: subagent runs live at
+/// `projects/<slug>/<session-id>/subagents/agent-*.jsonl` and carry their own
+/// usage blocks. A `projects/*/*.jsonl` walk missed 2,270 files in one root and
+/// 527 in another — a silent undercount that grows with subagent use.
+pub fn transcripts(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![root.join("projects")];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let path = e.path();
+            match e.file_type() {
+                Ok(t) if t.is_dir() => stack.push(path),
+                Ok(t) if t.is_file()
+                    && path.extension().and_then(|x| x.to_str()) == Some("jsonl") =>
+                {
+                    out.push(path)
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+/// Sum the usage blocks in `text` into `total`.
+pub fn sum_into(total: &mut Tokens, text: &str) {
+    for line in text.lines() {
+        // Cheap reject before paying for a JSON parse: most lines in a transcript
+        // are not assistant messages and carry no usage block.
+        if !line.contains("\"usage\"") {
+            continue;
+        }
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if let Some(u) = v.get("message").and_then(|m| m.get("usage")) {
+            add_usage(total, u);
+        }
+    }
+}
+
 /// Sum usage across transcripts touched since `cutoff` (epoch seconds).
 pub fn since(root: &Path, cutoff: i64) -> Tokens {
     let mut total = Tokens::default();
-    let projects = root.join("projects");
-    let Ok(dirs) = std::fs::read_dir(&projects) else {
-        return total;
-    };
-    for dir in dirs.flatten() {
-        let Ok(files) = std::fs::read_dir(dir.path()) else {
+    for path in transcripts(root) {
+        let recent = std::fs::metadata(&path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .is_some_and(|d| d.as_secs() as i64 >= cutoff);
+        if !recent {
             continue;
-        };
-        for f in files.flatten() {
-            let path = f.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                continue;
-            }
-            let recent = f
-                .metadata()
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64 >= cutoff)
-                .unwrap_or(false);
-            if !recent {
-                continue;
-            }
-            let Ok(text) = std::fs::read_to_string(&path) else {
-                continue;
-            };
-            for line in text.lines() {
-                // Cheap reject before paying for a JSON parse: most lines in a
-                // transcript are not assistant messages and carry no usage block.
-                if !line.contains("\"usage\"") {
-                    continue;
-                }
-                let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
-                    continue;
-                };
-                if let Some(u) = v.get("message").and_then(|m| m.get("usage")) {
-                    add_usage(&mut total, u);
-                }
-            }
+        }
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            sum_into(&mut total, &text);
         }
     }
     total

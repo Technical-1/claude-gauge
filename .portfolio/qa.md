@@ -39,14 +39,17 @@ and session title, with a live working/idle indicator. Clicking one brings its
 terminal window to the front.
 
 ### Burn rate with a projection
-When an account is measurably filling, the menu shows `▲ 24%/hr · full in 3h 29m`.
-A percentage tells you where you are; a rate tells you whether an account will
-survive the next two hours.
+When an account is measurably filling, the menu shows `▲ 24%/hr · full in 3h 29m`;
+when it is measured and flat, `— steady`; when there is not yet enough history,
+nothing at all. A percentage tells you where you are; a rate tells you whether an
+account will survive the next two hours — and the third state matters because
+"measured and safe" must not look like "no idea yet".
 
-### Token counts and a lifetime odometer
-Tokens processed in the current window per account, plus a running total of every
-token ever processed across all accounts — data the usage endpoint does not
-expose at all.
+### A lifetime token odometer
+A running total of every token ever processed across all accounts — data the usage
+endpoint does not expose at all. Deliberately the *only* token figure in the UI: a
+per-account token count is a magnitude with no decision attached, so it was
+removed in favour of the burn rate, which answers an actual question.
 
 ## Technical Highlights
 

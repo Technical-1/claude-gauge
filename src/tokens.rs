@@ -80,25 +80,6 @@ pub fn sum_into(total: &mut Tokens, text: &str) {
     }
 }
 
-/// Sum usage across transcripts touched since `cutoff` (epoch seconds).
-pub fn since(root: &Path, cutoff: i64) -> Tokens {
-    let mut total = Tokens::default();
-    for path in transcripts(root) {
-        let recent = std::fs::metadata(&path)
-            .ok()
-            .and_then(|m| m.modified().ok())
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .is_some_and(|d| d.as_secs() as i64 >= cutoff);
-        if !recent {
-            continue;
-        }
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            sum_into(&mut total, &text);
-        }
-    }
-    total
-}
-
 /// 776_000_000 -> "776M". Menu width is scarce; exact digits are not the point.
 pub fn human(n: u64) -> String {
     match n {

@@ -152,26 +152,24 @@ fn account_lines(s: &AccountStatus) -> Vec<String> {
                     reset
                 ));
             }
-            // Burn rate sits directly under the quota rows because it is derived
-            // from them. The token figure is an INDEPENDENT measurement from the
-            // transcripts and goes last — adjacency was implying a relationship
-            // between the two that does not exist.
-            if let Some((rate, eta)) = s.burn {
-                let when = match eta {
-                    Some(secs) if secs < 86_400 * 7 => {
-                        format!(" · full in {}", usage::until(
-                            chrono::Utc::now() + chrono::Duration::seconds(secs)))
-                    }
-                    _ => String::new(),
-                };
-                out.push(format!("      ▲ {rate:.0}%/hr{when}"));
-            }
-            if s.tokens.input > 0 || s.tokens.output > 0 {
-                out.push(format!(
-                    "      tokens 5h      ↑ {}  ↓ {}",
-                    tokens::human(s.tokens.input),
-                    tokens::human(s.tokens.output)
-                ));
+            // Directly under the quota rows, because it is derived from them.
+            // Three states, and the third is the point: absent means "not measured
+            // yet", which is not the same claim as "flat".
+            match s.burn {
+                Some((rate, _)) if rate < 0.5 => out.push("      — steady".into()),
+                Some((rate, eta)) => {
+                    let when = match eta {
+                        Some(secs) if secs < 86_400 * 7 => format!(
+                            " · full in {}",
+                            usage::until(
+                                chrono::Utc::now() + chrono::Duration::seconds(secs)
+                            )
+                        ),
+                        _ => String::new(),
+                    };
+                    out.push(format!("      ▲ {rate:.0}%/hr{when}"));
+                }
+                None => {}
             }
             if s.age_s > STALE_AFTER_S {
                 out.push(format!("      cached {}m ago — backing off", s.age_s / 60));
@@ -271,7 +269,6 @@ fn poll_all(roots: &[accounts::Root]) -> Vec<AccountStatus> {
             std::thread::sleep(STAGGER);
         }
         let mut st = accounts::poll(r);
-        st.tokens = tokens::since(&r.path, chrono::Utc::now().timestamp() - 5 * 3600);
         st.sessions = counts.as_ref().and_then(|m| m.get(&r.label).copied());
         st.session_list = all
             .as_deref()
@@ -305,7 +302,6 @@ fn poll_all_forced(roots: &[accounts::Root]) -> Vec<AccountStatus> {
             std::thread::sleep(STAGGER);
         }
         let mut st = accounts::poll_forced(r);
-        st.tokens = tokens::since(&r.path, chrono::Utc::now().timestamp() - 5 * 3600);
         st.sessions = counts.as_ref().and_then(|m| m.get(&r.label).copied());
         st.session_list = all
             .as_deref()

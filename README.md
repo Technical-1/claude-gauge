@@ -20,7 +20,6 @@ countdowns.
 - **Session list per account** — running sessions named by project and title, with
   a live working/idle mark; click one to bring its terminal window to the front
 - **Burn rate** — `▲ 24%/hr · full in 3h 29m` when an account is measurably filling
-- **Token counts** — tokens processed this window, per account
 - **Lifetime odometer** — a running total of every token ever processed, across
   all accounts, at the bottom of the menu
 - **Distinct failure states** — not-signed-in, expired, and rate-limited each read
@@ -181,7 +180,6 @@ spent is appended to `~/.config/claude-usage/requests.log`.
       ✳ ai-lab — AI project management at scale
       Weekly          100%   ↻ 1d 4h
       5-hour            6%   ↻ 1h 44m
-      tokens 5h      ↑ 66.6M  ↓ 6.7M
       ▲ 24%/hr · full in 3h 29m
 ```
 
@@ -221,8 +219,16 @@ Requires macOS Automation permission, prompted on first click.
 
 ### Burn rate
 
-Shown only when a real rising trend is measured: at least 3 samples spanning 15
-minutes, rising faster than 0.5%/hr.
+Three states, and the third is the point:
+
+| Row | Meaning |
+|---|---|
+| `▲ 24%/hr · full in 3h 29m` | measurably filling, with a projection |
+| `— steady` | measured, and not filling |
+| *(absent)* | **not measured yet** — fewer than 3 samples, or under 15 minutes |
+
+An account at 95% and *steady* is safe to use; one at 95% with no reading yet is
+unknown. Rendering those the same way would be a lie of omission.
 
 The span floor is not optional. Quota readings dither by a point or two, and
 differencing two adjacent samples turns that noise into a confident-looking
@@ -231,27 +237,23 @@ information.
 
 ### Token counts
 
-Summed from `<root>/projects/**/*.jsonl`, which carry a `usage` block per message.
-
-**Independent of the burn rate.** The burn rate is derived from quota
-percentages; token counts are parsed from transcripts. They sit in that order in
-the menu — quota rows, then the rate derived from them, then the token figure —
-because adjacency was implying a relationship the two do not have.
+Tokens are read from `<root>/projects/**/*.jsonl`, which carry a `usage` block per
+message. They feed the lifetime odometer below.
 
 The walk must **recurse**. Transcripts are not all two levels deep: subagent
 runs live at `projects/<slug>/<session-id>/subagents/agent-*.jsonl` and carry
 their own usage blocks. A `projects/*/*.jsonl` walk silently missed 2,270 files in
 one root and 527 in another.
 
-**Windowed, not total.** The full corpus runs to gigabytes across thousands of
-files; only files modified inside the window are opened — 16 files / 21MB / 0.11s
-for 5 hours.
-
 `cache_read_input_tokens` is **excluded**. Measured on one 5-hour window: output
 4.9M, cache_write 24M, cache_read 751M. Cache reads outnumber everything else by
 ~150×, so including them yields a number that mostly measures cache hits.
 
-**These do not track the quota percentage** and cannot be derived from it.
+Token totals **do not track the quota percentage** and cannot be derived from
+it — quota is weighted by model and caching in ways the transcripts do not expose.
+That is why there is no per-account token row: a raw magnitude with no decision
+attached is clutter. The burn rate above is the actionable number; the odometer
+below is the cumulative one.
 
 ### The odometer
 

@@ -75,8 +75,6 @@ pub struct AccountStatus {
     /// when enumeration failed would be a silent lie, which is the one failure
     /// mode a meter must not have.
     pub sessions: Option<usize>,
-    /// Tokens processed in the last 5 hours, from this account's transcripts.
-    pub tokens: crate::tokens::Tokens,
     /// (points/hour, seconds until 100%) when a real rising trend is measured.
     pub burn: Option<(f64, Option<i64>)>,
     /// The sessions themselves, for this account's submenu. Empty when
@@ -141,7 +139,7 @@ const BACKOFF_BASE_S: i64 = 300;
 const BACKOFF_MAX_S: i64 = 1800;
 
 fn status(label: &str, state: State, age_s: i64) -> AccountStatus {
-    AccountStatus { label: label.to_string(), state, age_s, sessions: None, session_list: Vec::new(), burn: None, tokens: Default::default() }
+    AccountStatus { label: label.to_string(), state, age_s, sessions: None, session_list: Vec::new(), burn: None }
 }
 
 fn from_cache(root: &Root, e: &crate::cache::Entry, now: i64) -> AccountStatus {

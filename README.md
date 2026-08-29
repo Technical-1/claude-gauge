@@ -68,33 +68,13 @@ cargo build --release
 ./build-app.sh --no-sign --install     # unsigned, local use
 ```
 
-For a signed and notarized build you need your own Developer ID and a stored
-notarytool profile:
+For a signed build, set your own Developer ID and a stored notarytool profile:
 
 ```sh
 export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
 export NOTARY_PROFILE="claude-usage"
-xcrun notarytool store-credentials "claude-usage" \
-  --key ~/path/AuthKey_XXXXXXXX.p8 --key-id XXXXXXXX --issuer <ISSUER-UUID>
 ./build-app.sh --install
 ```
-
-This produces `dist/Claude-Usage-<version>.zip`, a signed, notarized and
-**stapled** bundle that runs on any Mac.
-
-Verify with `spctl`, not by launching it. A bundle always launches on the
-machine that built it, notarized or not, so a successful launch proves nothing.
-
-**The release zip is built after stapling, not before.** Notarization needs a
-zip uploaded to Apple *before* the ticket exists; shipping that same zip hands
-recipients an unstapled app, forcing Gatekeeper to reach Apple on first launch —
-slow at best, a failure offline. The script keeps the two separate and packages
-the release copy from the stapled bundle.
-
-The build also verifies the artifact **as a download**: it tags the zip with
-`com.apple.quarantine`, unpacks it elsewhere, and runs `spctl` and `stapler`
-against that copy. Checking the bundle you just built in place says nothing about
-what a recipient sees.
 
 ### Usage
 
@@ -332,10 +312,7 @@ relaunches the app the instant Quit calls `exit(0)`, which makes Quit look broke
 cargo build --release          # build
 cargo clippy --release         # lint (clean at default level)
 ./target/release/claude-usage --menu    # verify the dropdown without a GUI
-
-./build-app.sh --no-sign       # unsigned bundle, for iteration
 ./build-app.sh --icon          # re-render assets/icon.icns from assets/icon.html
-./build-app.sh --install       # sign, notarize, staple, verify, install
 ```
 
 The icon is authored as HTML and rasterised at 2048px by headless Chrome, then

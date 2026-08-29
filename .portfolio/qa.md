@@ -179,15 +179,6 @@ instead of adding a duplicate menubar item. The lock is an advisory `flock` rath
 than a PID file, so it cannot go stale — the kernel releases it even if the app is
 force-quit.
 
-### Can I give the built app to someone else?
-Yes — `build-app.sh` produces a signed, notarized and **stapled** zip that runs on
-a Mac that has never seen it, offline. Stapling matters: notarization uploads a
-zip built *before* the ticket exists, and shipping that same zip hands the
-recipient an unstapled app whose first launch has to reach Apple to verify. The
-build keeps the submission and release copies separate, then verifies the release
-one the way a recipient receives it — tagged with `com.apple.quarantine`,
-unpacked elsewhere, and checked with `spctl` and `stapler`.
-
 ### How do I add or remove an account?
 Edit `~/.config/claude-usage/roots.json`. It is seeded on first run from whatever
 config directories exist and is never rewritten afterwards, so entries you delete

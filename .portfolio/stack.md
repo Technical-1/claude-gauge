@@ -33,15 +33,10 @@
 
 ## Infrastructure
 
-- **Distribution**: Developer ID signed, notarized and stapled `.app` bundle,
-  packaged as a zip built *after* stapling so recipients get the ticket inside the
-  bundle rather than a first launch that has to reach Apple
-- **Build**: `build-app.sh` — bundle, sign, notarize, staple, verify, package,
-  install. Verifies the artifact as a download (quarantine-tagged, unpacked
-  elsewhere), not only in place
-- **CI/CD**: None. Personal tool, built and released from one machine
+- **Distribution**: A signed, notarized `.app` bundle. No server, no hosting.
+- **CI/CD**: None. Personal tool, built from one machine.
 - **Monitoring**: An append-only request log, so rate-limit questions can be
-  answered from data rather than recollection
+  answered from data rather than recollection.
 
 ## Development Tools
 

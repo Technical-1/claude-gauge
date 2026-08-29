@@ -14,8 +14,9 @@ cd "$(dirname "$0")"
 
 APP_NAME="Claude Usage"
 BUNDLE_ID="com.technical1.claude-usage"
-# Overridable so this builds on someone else's machine and Developer ID.
-IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Your Name (TEAMID)}"
+# No default identity on purpose: a hardcoded one means someone else's build
+# silently tries to sign as its author and fails somewhere confusing.
+IDENTITY="${SIGN_IDENTITY:-}"
 PROFILE="${NOTARY_PROFILE:-claude-usage}"
 VERSION="$(awk -F'"' '/^version =/{print $2; exit}' Cargo.toml)"
 
@@ -101,6 +102,12 @@ PLIST
 if [ "$SIGN" = 0 ]; then
   say "Skipping signing (--no-sign): local iteration build"
 else
+if [ -z "$IDENTITY" ]; then
+  echo "SIGN_IDENTITY is not set. Either:" >&2
+  echo "  export SIGN_IDENTITY=\"Developer ID Application: Your Name (TEAMID)\"" >&2
+  echo "  ...or build unsigned with --no-sign" >&2
+  exit 1
+fi
 say "Signing"
 codesign --force --options runtime --timestamp \
   --sign "$IDENTITY" "$APP/Contents/MacOS/claude-usage"

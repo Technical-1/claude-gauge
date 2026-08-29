@@ -36,6 +36,10 @@ say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 # Off by default: assets/icon.icns is committed, and re-rendering needs Chrome.
 if [ "$ICON" = 1 ]; then
   say "Rendering icon at 2048px"
+  # dist/ is normally created by the bundle step further down, which runs AFTER
+  # this one. On a clean tree it does not exist yet and the render silently
+  # writes nowhere — only a from-scratch build reveals it.
+  mkdir -p dist
   "$CHROME" --headless --disable-gpu --no-sandbox \
     --screenshot=dist/icon-2048.png --window-size=1024,1024 \
     --force-device-scale-factor=2 --default-background-color=00000000 \

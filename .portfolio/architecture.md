@@ -59,9 +59,17 @@ flowchart TD
 - **Purpose**: Render the headline meter and the dropdown; own the event loop.
 - **Location**: `src/main.rs`
 - **Key responsibilities**: Build the menubar string, build the menu (including a
-  submenu per account), map session menu-item ids to ttys, dispatch clicks. The
-  id→tty map is rebuilt with the menu on every refresh, because menu ids are
-  reissued each time and a stale map would raise the wrong session.
+  submenu per account), map session menu-item ids to ttys, dispatch clicks.
+- **Update path**: Content is computed into a `Rendered` value *before* any menu
+  object is touched, so a refresh can do the least it can — nothing if the
+  content is identical, `set_text` on the existing items if only the strings
+  changed, and a full rebuild only when items must be added or removed. macOS
+  closes an open menu when its `NSMenu` is replaced, so this is what keeps a
+  submenu open while you are hovering it.
+- The id→tty map is rewritten on every update, not just on rebuild. A session
+  can end as another starts, leaving the count unchanged while a position now
+  holds a different session — assuming the mapping is stable would raise the
+  wrong window.
 
 ### Account polling
 - **Purpose**: Turn a config root into a usage reading.
@@ -187,17 +195,23 @@ flowchart TD
   since several sessions can share one working directory with no way to tell
   which process owns which file. tty is exact and needs no heuristics.
 
-### Deduplicate response windows by identity, not by value
-- **Context**: The API reports some limits twice — once as a top-level object and
-  again inside a `limits[]` array — producing duplicate rows.
-- **Decision**: An explicit alias map (`session → five_hour`,
-  `weekly_all → seven_day`). Anything not in the map is shown.
-- **Rationale**: The tempting rule is "merge rows with the same value and reset
-  time". Two genuinely unrelated limits currently share a value (both zero) and
-  would be merged today, then split apart the moment one becomes non-zero —
-  producing rows that appear and vanish between refreshes. Unknown keys fail
-  *visible* rather than hidden, so a limit the API starts returning surfaces
-  instead of being silently dropped.
+### Choosing which windows to display, by identity and by meaning
+- **Context**: The response reports some limits twice under different names, and
+  carries several undocumented keys that have always read zero alongside
+  per-model caps that are usually zero. Shown raw, that is seven rows per account
+  where two matter.
+- **Decision**: Collapse duplicates through an explicit alias map, and treat two
+  core windows as always-visible while every other window is hidden at 0% and
+  appears the moment it carries a value.
+- **Rationale**: The tempting dedup rule is "merge rows with the same value and
+  reset time" — but two unrelated limits currently share a value (both zero) and
+  would merge today, then split apart the moment one becomes non-zero, so rows
+  would appear and vanish between refreshes. Identity is stable; value is not.
+  The visibility rule is likewise not "hide zeros" but "hide zeros that say
+  nothing": 0% on a core window means full headroom, which is exactly what the
+  reader opened the menu to learn. An allow-list of two also beats a deny-list of
+  six, since an undocumented key nobody has seen yet behaves correctly without
+  being enumerated first.
 
 ### Measuring the rate on the window that can move
 - **Context**: A burn rate needs a series to difference, and the app tracks
@@ -226,14 +240,3 @@ flowchart TD
   picking them up next pass; and never subtracting for a deleted file, because an
   odometer measures what was spent, not what still exists.
 
-### An allow-list of meaningful windows, not a deny-list of noisy ones
-- **Context**: The response carries several undocumented keys that have always
-  read zero, alongside per-model caps that are usually zero. Showing them all
-  makes seven rows per account where two matter.
-- **Decision**: Two core windows always render even at 0%. Every other window is
-  hidden while zero and appears automatically if it ever carries a value.
-- **Rationale**: The rule is not "hide zeros" — it is "hide zeros that say
-  nothing". `0%` on a core window means full headroom, which is exactly what the
-  reader opened the menu to learn. An allow-list of two also beats a deny-list of
-  six: an undocumented key that has never been seen behaves correctly without
-  being enumerated first.

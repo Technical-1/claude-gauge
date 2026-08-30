@@ -14,7 +14,9 @@
 
 - **Rendering**: Native macOS menu items — no custom drawing, no web view
 - **Concurrency**: Three background threads, `Arc<Mutex<…>>` for shared state, and
-  a dirty flag so the menu is only rebuilt when something changed. Split by what
+  a dirty flag. The menu is only *rebuilt* when its item layout changes; a
+  value-only change updates the existing items in place, and identical content
+  touches nothing. Threads are split by what
   each costs: sessions every 60s (local calls only), quota every 300s (the only
   thing spending requests), and a one-shot thread for the odometer's first
   full-corpus pass so the menubar is never held up by it

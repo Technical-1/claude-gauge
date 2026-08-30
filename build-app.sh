@@ -7,6 +7,7 @@
 #   ./build-app.sh --no-notarize  signed but not notarized (will NOT run elsewhere)
 #   ./build-app.sh --icon       also re-render the icon from assets/icon.html
 #   ./build-app.sh --install    copy the finished app into /Applications
+#   ./build-app.sh --universal  build for arm64 AND x86_64 (what a release ships)
 #
 # Credentials live in the notarytool keychain profile below — never in this repo.
 set -euo pipefail
@@ -41,8 +42,9 @@ SUBMIT_ZIP="dist/.submit-${VERSION}.zip"
 DIST_ZIP="dist/${APP_NAME// /-}-${VERSION}.zip"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
-NOTARIZE=1; ICON=0; INSTALL=0; SIGN=1
+NOTARIZE=1; ICON=0; INSTALL=0; SIGN=1; UNIVERSAL=0
 for a in "$@"; do case "$a" in
+  --universal) UNIVERSAL=1 ;;
   --no-notarize) NOTARIZE=0 ;; --icon) ICON=1 ;; --install) INSTALL=1 ;;
   --no-sign) SIGN=0; NOTARIZE=0 ;;
   *) echo "unknown flag: $a" >&2; exit 2 ;;
@@ -73,14 +75,49 @@ if [ "$ICON" = 1 ]; then
 fi
 
 # ── build ───────────────────────────────────────────────────────────────────
-say "Building release binary (v$VERSION)"
-cargo build --release
+# A plain `cargo build --release` produces a HOST-ARCH binary. On Apple
+# Silicon that is arm64 only, and an Intel Mac cannot run it at all — so a
+# release built without this flag is unusable by half its potential audience.
+# Local iteration stays single-arch because it is twice as fast and only has to
+# run on this machine.
+if [ "$UNIVERSAL" = 1 ]; then
+  say "Building universal binary (v$VERSION)"
+  rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null 2>&1 || true
+  # `rustup target add` can succeed while the build still fails, because
+  # rustup installs into ITS toolchain and a Homebrew-installed rustc — which
+  # ships host-only std — may be the one on PATH. `rustup target list
+  # --installed` then lies: it reports the target while the active compiler has
+  # no std for it, and the build dies deep in a dependency with a misleading
+  # "can't find crate for std". Ask the compiler that will actually run.
+  for t in aarch64-apple-darwin x86_64-apple-darwin; do
+    libdir="$(rustc --print target-libdir --target "$t" 2>/dev/null || true)"
+    if [ -z "$libdir" ] || [ ! -d "$libdir" ]; then
+      echo "The active rustc has no std for $t." >&2
+      echo "  active: $(command -v rustc) — $(rustc --version)" >&2
+      echo "  A rustup-managed toolchain is needed for a universal build;" >&2
+      echo "  a Homebrew rustc only ships its own architecture." >&2
+      echo "  Build without --universal for a local, this-machine-only app." >&2
+      exit 1
+    fi
+  done
+  cargo build --release --target aarch64-apple-darwin
+  cargo build --release --target x86_64-apple-darwin
+  mkdir -p target/universal
+  lipo -create -output target/universal/claude-usage \
+    target/aarch64-apple-darwin/release/claude-usage \
+    target/x86_64-apple-darwin/release/claude-usage
+  BIN=target/universal/claude-usage
+else
+  say "Building release binary (v$VERSION, this machine's architecture only)"
+  cargo build --release
+  BIN=target/release/claude-usage
+fi
 
 # ── bundle ──────────────────────────────────────────────────────────────────
 say "Assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp target/release/claude-usage "$APP/Contents/MacOS/claude-usage"
+cp "$BIN" "$APP/Contents/MacOS/claude-usage"
 cp assets/icon.icns            "$APP/Contents/Resources/icon.icns"
 
 # LSUIElement duplicates the runtime ActivationPolicy::Accessory call on purpose:
@@ -132,13 +169,20 @@ fi
 # ── notarize ────────────────────────────────────────────────────────────────
 if [ "$NOTARIZE" = 1 ]; then
   say "Notarizing (this takes a few minutes)"
+  # A fresh CI runner has no keychain profile, so fall back to the API key trio
+  # when it is supplied by the environment. Locally the profile is used.
+  if [ -n "${APPLE_API_KEY_PATH:-}" ] && [ -n "${APPLE_API_KEY_ID:-}" ] && [ -n "${APPLE_API_ISSUER_ID:-}" ]; then
+    NOTARY_AUTH=(--key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID")
+  else
+    NOTARY_AUTH=(--keychain-profile "$PROFILE")
+  fi
   rm -f "$SUBMIT_ZIP"
   ditto -c -k --keepParent "$APP" "$SUBMIT_ZIP"
-  if ! xcrun notarytool submit "$SUBMIT_ZIP" --keychain-profile "$PROFILE" --wait; then
+  if ! xcrun notarytool submit "$SUBMIT_ZIP" "${NOTARY_AUTH[@]}" --wait; then
     echo "notarization failed — fetching log for the most recent submission" >&2
-    id=$(xcrun notarytool history --keychain-profile "$PROFILE" 2>/dev/null \
+    id=$(xcrun notarytool history "${NOTARY_AUTH[@]}" 2>/dev/null \
          | awk '/id: /{print $2; exit}')
-    [ -n "$id" ] && xcrun notarytool log "$id" --keychain-profile "$PROFILE" >&2
+    [ -n "$id" ] && xcrun notarytool log "$id" "${NOTARY_AUTH[@]}" >&2
     exit 1
   fi
   say "Stapling"

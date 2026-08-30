@@ -150,12 +150,21 @@ flowchart TD
 - **Context**: The stored credential blob contains a refresh token, and expired
   access tokens are common. The obvious behaviour is to refresh transparently.
 - **Decision**: Never write to the Keychain and never perform a refresh. An
-  expired token is reported as a *state* with a fix ("open this account once").
+  expired token falls back to the last cached reading rather than an error.
 - **Rationale**: Refresh tokens rotate. Spending one without persisting the new
   pair would invalidate the credential its owner holds — a status display would
   silently sign you out of the account it is reporting on. Writing the new pair
   back instead means racing another process for its own credential store. Neither
-  risk is worth taking for a meter.
+  risk is worth taking for a meter. Delegating the refresh to a CLI subprocess is
+  a dead end as well: a shipped implementation of that times out, because the CLI
+  starts in REPL mode, and the attempt can launch a browser.
+
+  Expiry is then handled by showing the last reading. Tokens live about eight
+  hours and the CLI only refreshes its own while running, so the accounts that
+  expire are exactly the ones not in use — which are the ones the meter exists to
+  evaluate. A stale reading is conservative there, since an idle account only
+  recovers quota, except once its reset has passed: that window has refilled, so
+  it reads 0%.
 
 ### A freshness floor shared by every caller, not a per-call timer
 - **Context**: The usage endpoint rate-limits on request frequency, entirely

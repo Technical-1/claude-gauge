@@ -23,8 +23,8 @@ countdowns.
   measurably filling, with the projection suppressed if the window resets first
 - **Lifetime odometer** — a running total of every token ever processed, across
   all accounts, at the bottom of the menu
-- **Distinct failure states** — not-signed-in, expired, and rate-limited each read
-  differently, because each has a different fix
+- **Distinct failure states** — not-signed-in and rate-limited read differently,
+  because each has a different fix
 - **Rate-limit aware** — a shared request budget, exponential backoff, and
   last-good values so a transient refusal never blanks the display
 - **Read-only** — never writes to the Keychain, never refreshes a token
@@ -134,8 +134,8 @@ Refresh tokens rotate. Spending one here without persisting the new pair back
 would invalidate the credential Claude Code itself holds — this meter would
 silently sign you out of the account it is reporting on. Writing it back instead
 means racing Claude Code for its own credential store. Neither is worth it for a
-status display, so an expired token is reported as a *state* (`exp`, "open it once
-to refresh") rather than worked around.
+status display, so expiry is handled by showing the last reading rather than by
+being worked around — see below.
 
 **An expired token returns 429 from this endpoint, not 401.** So expiry is
 checked *before* the request is spent — otherwise every stale account looks

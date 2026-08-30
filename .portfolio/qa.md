@@ -29,9 +29,10 @@ from inside a session. This puts all of it in one glance.
 
 ### One field per account in the menubar
 `⑴ 22%  ⑵ 100%  ⑶ 6%` — the worst gauged window for each account. Every failure is
-a distinct readout with a different fix: `--` means not signed in, `exp` means the
-token expired, `429` means rate-limited, `7%~` means the meter is serving the last
-good value while it backs off.
+a distinct readout with a different fix: `--` means not signed in, `429` means
+rate-limited, `7%~` means the meter is serving the last good value while it backs
+off. An expired token shows its last reading rather than an error, because the
+accounts whose tokens lapse are the idle ones whose numbers have not moved.
 
 ### A session list per account, with click-to-focus
 Each account opens a submenu of its running sessions, named by project directory
@@ -53,13 +54,19 @@ removed in favour of the burn rate, which answers an actual question.
 
 ## Technical Highlights
 
-### Reporting an expired token instead of a rate limit
+### Telling an expired token apart from a rate limit
 The usage endpoint returns **429 for an expired access token**, not 401. Handled
 naively, every account with a stale credential reads as "rate limited", and you
 switch away from an account that was actually fine. `poll()` in `src/accounts.rs`
-therefore checks the token's `expiresAt` *before* spending a request, so expiry is
-reported as its own state with its own fix. Ordering the check before the network
-call is the entire fix, and it only works in that order.
+checks the token's `expiresAt` *before* spending a request, which is the only way
+to tell the two apart — and it only works in that order.
+
+Knowing which it is then changes what gets shown. Tokens live about eight hours
+and the CLI only refreshes its own while running, so an expired token means the
+account is idle, and its last reading is still true. It is displayed rather than
+replaced by an error. The exception is a window whose reset has passed: that one
+has refilled, so it reads 0%, which is the single number the app shows without
+having measured it.
 
 ### Surviving rate limits instead of amplifying them
 The first version polled every 60 seconds per account with no backoff, so a single

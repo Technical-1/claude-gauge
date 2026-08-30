@@ -28,7 +28,7 @@ that a row can appear without warning, which is the correct trade for a meter.
 From the screenshot, per account:
 
 ```
-1️⃣ claude — session 7%  ↻ 3h 18m
+1⃣ claude — session 7%  ↻ 3h 18m
       five_hour            7%   ↻ 3h 18m
       session              7%   ↻ 3h 18m      <- duplicate of five_hour
       seven_day            2%   ↻ 6d 14h
@@ -44,7 +44,7 @@ Seven lines per account, 21 lines total, to convey six real numbers.
 | P1 | `session` duplicates `five_hour`; `weekly_all` duplicates `seven_day` | noise, halves the signal |
 | P2 | `nimbus_quill` is opaque and permanently `0%` | noise |
 | P3 | Raw API key names (`five_hour`, `weekly_scoped:Fable`) leak into the UI | unpolished |
-| P4 | Emoji keycaps `1️⃣2️⃣3️⃣` | disliked; want ASCII |
+| P4 | Emoji keycaps `1⃣2⃣3⃣` | disliked; want ASCII |
 | P5 | No session count per account | the leading indicator is missing |
 | P6 | Nothing stops a second instance | two menubar items |
 
@@ -156,12 +156,12 @@ render, and the current forms are Unicode/emoji that the ASCII decision touches:
 
 | State | Today | Meaning |
 |---|---|---|
-| `Ok` | `1️⃣ 7%` | normal |
-| `NotLoggedIn` | `1️⃣ –` | no keychain entry |
-| `Expired` | `1️⃣ ↻` | access token expired — collides with the reset `↻` |
-| `Http{429}` | `1️⃣ ` | rate limited with no cached value |
-| stale (backing off) | `1️⃣ 7%~` | serving last good value |
-| `Error` | `1️⃣ !` | anything else |
+| `Ok` | `1⃣ 7%` | normal |
+| `NotLoggedIn` | `1⃣ –` | no keychain entry |
+| `Expired` | `1⃣ ↻` | access token expired — collides with the reset `↻` |
+| `Http{429}` | `1⃣ ` | rate limited with no cached value |
+| stale (backing off) | `1⃣ 7%~` | serving last good value |
+| `Error` | `1⃣ !` | anything else |
 
 **Decided** — short words:
 

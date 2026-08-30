@@ -71,6 +71,12 @@ pub struct AccountStatus {
     pub age_s: i64,
     /// (points/hour, seconds until 100%) when a real rising trend is measured.
     pub burn: Option<(f64, Option<i64>)>,
+    /// Seconds since the access token expired, when we are showing a cached
+    /// reading because of it. The reading is still displayed — see poll_inner.
+    ///
+    /// Seconds, not hours: an expiry is usually minutes old when first noticed,
+    /// and "expired 0h ago" reads like a bug.
+    pub expired_secs: Option<i64>,
 }
 
 impl AccountStatus {
@@ -130,7 +136,7 @@ const BACKOFF_BASE_S: i64 = 300;
 const BACKOFF_MAX_S: i64 = 1800;
 
 fn status(label: &str, state: State, age_s: i64) -> AccountStatus {
-    AccountStatus { label: label.to_string(), state, age_s, burn: None }
+    AccountStatus { label: label.to_string(), state, age_s, burn: None, expired_secs: None }
 }
 
 /// The five-hour window, which is what a rate is worth quoting for.
@@ -211,11 +217,36 @@ fn poll_inner(root: &Root, force: bool) -> AccountStatus {
             // confusing 429 from this endpoint rather than a 401, so asking
             // first is the only way to report the real cause.
             if let Some(exp) = tok.expires_at_ms
-                && exp < now_ms {
-                    return status(&root.label, State::Expired {
-                        hours_ago: (now_ms - exp) / 3_600_000,
-                    }, 0);
+                && exp < now_ms
+            {
+                let hours_ago = (now_ms - exp) / 3_600_000;
+                // Show the last reading rather than the failure.
+                //
+                // Access tokens live ~8h and Claude Code only refreshes its own
+                // while it runs, so the accounts that expire are precisely the
+                // ones you are NOT using — which are the ones you opened this
+                // menu to evaluate. Blanking them fails exactly where the app is
+                // supposed to be useful.
+                //
+                // A stale reading is conservative here: an idle account only
+                // recovers quota, so an old number over-states usage. It can say
+                // an account is fuller than it is, never emptier, so it will not
+                // send you somewhere already exhausted.
+                //
+                // Refreshing instead is NOT an option. Claude Code rotates
+                // these and the old token is revoked server-side immediately, so
+                // refreshing here would invalidate the credential Claude Code
+                // itself holds. Delegating the refresh to a `claude` subprocess
+                // is a known dead end too — CodexBar ships that and it times out
+                // because the CLI starts in REPL mode, and the attempt can
+                // launch a browser.
+                if entry.has_data() {
+                    let mut st = from_cache(root, &entry, now);
+                    st.expired_secs = Some(now - exp / 1000);
+                    return st;
                 }
+                return status(&root.label, State::Expired { hours_ago }, 0);
+            }
             match crate::usage::fetch(&tok.access) {
                 Ok(ws) => {
                     crate::usage::log_request(&root.label, "200 ok");

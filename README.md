@@ -36,7 +36,7 @@ countdowns.
 | `⑵ 99%` | worst gauged window for that account | switch accounts |
 | `⑵ 99%~` | last good value; backing off after a 429 | wait, it self-heals |
 | `⑶ --` | no keychain entry — not signed in | run that account once, then `/login` |
-| `⑴ exp` | access token expired | open that account once |
+| `⑴ exp` | token expired **and** no cached reading to fall back on | open that account once |
 | `⑵ 429` | rate limited with no cached value to fall back on | wait; it backs off automatically |
 | `⑴ err` | other error | see the dropdown for the message |
 
@@ -140,6 +140,24 @@ to refresh") rather than worked around.
 **An expired token returns 429 from this endpoint, not 401.** So expiry is
 checked *before* the request is spent — otherwise every stale account looks
 rate-limited and you switch away from an account that was fine.
+
+### An expired token shows the last reading, not an error
+
+Access tokens live about 8 hours, and Claude Code only refreshes its own while it
+is running. So the accounts whose tokens expire are precisely the ones you are
+**not** using — which are the ones you opened this menu to evaluate. Blanking
+them would fail exactly where the meter is supposed to help.
+
+The last good reading is shown instead, marked `~`, with its age and the expiry
+in the dropdown. That is conservative: an idle account only *recovers* quota, so
+an old number over-states usage — it can say an account is fuller than it is,
+never emptier, so it will not send you somewhere already exhausted.
+
+**Refreshing the token is not an option.** Claude Code rotates these and the
+old token is revoked server-side immediately, so refreshing here would invalidate
+the credential Claude Code itself holds. Delegating the refresh to a `claude`
+subprocess is a known dead end as well: it times out because the CLI starts in
+REPL mode, and the attempt can launch a browser.
 
 ## Request budget
 

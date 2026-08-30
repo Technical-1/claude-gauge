@@ -86,7 +86,11 @@ fn title(statuses: &[AccountStatus]) -> String {
             // already decided to look, and it doubled the width of every field.
             match (&s.state, s.worst()) {
                 (State::Ok(_), Some(w)) => {
-                    let stale = if s.age_s > STALE_AFTER_S { "~" } else { "" };
+                    let stale = if s.age_s > STALE_AFTER_S || s.expired_secs.is_some() {
+                        "~"
+                    } else {
+                        ""
+                    };
                     format!("{tag} {:.0}%{stale}", w.pct)
                 }
                 (State::Ok(_), None) => format!("{tag} ?"),
@@ -125,6 +129,18 @@ fn about_item() -> PredefinedMenuItem {
             ..Default::default()
         }),
     )
+}
+
+/// "42m" / "3h 5m" / "2d". Elapsed time, where `usage::until` is time remaining.
+fn ago(secs: i64) -> String {
+    let (d, h, m) = (secs / 86400, (secs % 86400) / 3600, (secs % 3600) / 60);
+    if d > 0 {
+        format!("{d}d {h}h")
+    } else if h > 0 {
+        format!("{h}h {m}m")
+    } else {
+        format!("{m}m")
+    }
 }
 
 /// The exact text of one account's block: header line, then one line per window.
@@ -174,8 +190,18 @@ fn account_lines(s: &AccountStatus, sessions: Option<&[sessions::Session]>) -> V
                 };
                 out.push(format!("      ▲ {rate:.0}%/hr on 5-hour{when}"));
             }
-            if s.age_s > STALE_AFTER_S {
-                out.push(format!("      cached {}m ago — backing off", s.age_s / 60));
+            // Two different reasons a reading can be old, and they have
+            // different fixes — so they must not read the same.
+            match (s.expired_secs, s.age_s > STALE_AFTER_S) {
+                (Some(secs), _) => out.push(format!(
+                    "      last reading {} ago · token expired {} ago — open this account",
+                    ago(s.age_s),
+                    ago(secs)
+                )),
+                (None, true) => {
+                    out.push(format!("      cached {}m ago — backing off", s.age_s / 60))
+                }
+                (None, false) => {}
             }
         }
         State::NotLoggedIn => {

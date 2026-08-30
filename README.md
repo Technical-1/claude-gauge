@@ -148,8 +148,7 @@ is running. So the accounts whose tokens expire are precisely the ones you are
 **not** using — which are the ones you opened this menu to evaluate. Blanking
 them would fail exactly where the meter is supposed to help.
 
-The last good reading is shown instead, with its age and the expiry in the
-dropdown. That is conservative: an idle account only *recovers* quota, so an old
+The last good reading is shown instead, with its age in the dropdown. That is conservative: an idle account only *recovers* quota, so an old
 number over-states usage — it can say an account is fuller than it is, never
 emptier, so it will not send you somewhere already exhausted.
 

@@ -198,13 +198,13 @@ fn account_lines(s: &AccountStatus, sessions: Option<&[sessions::Session]>) -> V
             // Two different reasons a reading can be old, and they have
             // different fixes — so they must not read the same.
             match (s.expired_secs, s.age_s > STALE_AFTER_S) {
-                (Some(secs), _) => out.push(format!(
-                    "      last reading {} ago · token expired {} ago",
-                    ago(s.age_s),
-                    ago(secs)
-                )),
+                // Only the reading's age. The expiry time was redundant: the
+                // last successful poll happens just before the token lapses, so
+                // the two were always within minutes of each other and the row
+                // was the widest thing in the menu for no gain.
+                (Some(_), _) => out.push(format!("      as of {} ago", ago(s.age_s))),
                 (None, true) => {
-                    out.push(format!("      cached {}m ago — backing off", s.age_s / 60))
+                    out.push(format!("      as of {} ago · backing off", ago(s.age_s)))
                 }
                 (None, false) => {}
             }

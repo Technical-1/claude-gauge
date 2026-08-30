@@ -334,6 +334,11 @@ The icon is authored as HTML and rasterised at 2048px by headless Chrome, then
 downsampled into an `.iconset`. The gauge geometry is computed rather than drawn,
 so moving the needle is editing one constant.
 
+Directions were explored as standalone files in `docs/mockups/`, each carrying a
+thesis header, and compared at 256/128/64/32px — small sizes decide an icon, and
+live rendering at 32px *drops* thin strokes where a downscaled bitmap merely
+blurs them. `assets/icon.html` is the chosen one with fixed-pixel sizing.
+
 ## Project Structure
 
 ```

@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8"><title>BOLD FLAT</title>
+<style>
+/* ==================================================================
+   BOLD FLAT
+   Renders at 1024, 128, 64 and 32px. 32px is the binding size.
+   A thick black arc with the spent portion in red. Silhouette first.
+   Personality: Blunt and modern. Two strokes and a dot, nothing else earns its place.
+   Near-white ground, near-black arc, one red segment. Highest contrast in the set.
+   Anti-goal: Skeuomorphism. No bezel, no dial face, no shine.
+
+   TYPE: none. An app icon carries no text, so the "named type" slot of
+   the thesis header does not apply — the register is carried entirely by
+   silhouette, weight and colour.
+   ================================================================== */
+  html,body{margin:0;background:transparent}
+  body{width:100vw;height:100vh;display:grid;place-items:center}
+  #tile{width:80.5vmin;height:80.5vmin;border-radius:17.9vmin;position:relative;overflow:hidden;
+    background:linear-gradient(160deg,#FBF7F0,#E7DED0);box-shadow:inset 0 5px 0 rgba(255,255,255,.8),inset 0 -4px 0 rgba(0,0,0,.14)}
+  svg{position:absolute;inset:0;width:100%;height:100%}
+</style>
+<div id="tile"><svg id="g" viewBox="0 0 824 824" preserveAspectRatio="xMidYMid meet"></svg></div>
+<script>
+const rad=a=>a*Math.PI/180;
+const pt=(a,r,cx=412,cy=412)=>[cx+r*Math.cos(rad(a)),cy+r*Math.sin(rad(a))];
+const arc=(a0,a1,r,cx=412,cy=412)=>{const[x0,y0]=pt(a0,r,cx,cy),[x1,y1]=pt(a1,r,cx,cy);
+  return `M ${x0} ${y0} A ${r} ${r} 0 ${a1-a0>180?1:0} 1 ${x1} ${y1}`};
+const el=(n,a)=>{const e=document.createElementNS("http://www.w3.org/2000/svg",n);
+  for(const k in a)e.setAttribute(k,a[k]);return e};
+const svg=document.getElementById("g"), add=(n,a)=>svg.append(el(n,a));
+const needle=(a,cx,cy,len,w,fill)=>{const[tx,ty]=pt(a,len,cx,cy),
+  [lx,ly]=pt(a-90,w,cx,cy),[rx,ry]=pt(a+90,w,cx,cy);
+  add("path",{d:`M ${tx} ${ty} L ${lx} ${ly} L ${rx} ${ry} Z`,fill})};
+const ticks=(A0,A1,R,cx,cy,col,n=10)=>{for(let i=0;i<=n;i++){const a=A0+(A1-A0)*(i/n),maj=i%5===0;
+  const[x0,y0]=pt(a,R-30,cx,cy),[x1,y1]=pt(a,R-(maj?76:56),cx,cy);
+  add("line",{x1:x0,y1:y0,x2:x1,y2:y1,stroke:col,"stroke-width":maj?14:8,"stroke-linecap":"round"})}};
+
+  const R=238,A0=135,A1=405,VAL=.7;
+  add("path",{d:arc(A0,A1,R),fill:"none",stroke:"#1C1714","stroke-width":96,"stroke-linecap":"round"});
+  add("path",{d:arc(A0+(A1-A0)*VAL,A1,R),fill:"none",stroke:"#D14A32","stroke-width":96,"stroke-linecap":"round"});
+  const[dx,dy]=pt(A0+(A1-A0)*VAL,R); add("circle",{cx:dx,cy:dy,r:34,fill:"#FBF7F0"});
+</script>

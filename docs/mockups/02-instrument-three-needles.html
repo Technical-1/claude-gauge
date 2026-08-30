@@ -1,30 +1,20 @@
-<!doctype html><meta charset="utf-8"><title>claude-usage icon</title>
+<!doctype html><meta charset="utf-8"><title>INSTRUMENT, THREE NEEDLES</title>
 <style>
 /* ==================================================================
-   INSTRUMENT, CREAM
+   INSTRUMENT, THREE NEEDLES
    Renders at 1024, 128, 64 and 32px. 32px is the binding size.
-   A dial you read at a glance — the needle answers first.
-   Personality: Vintage pressure gauge. Machined, warm, physical.
-   Heavy black bezel, cream enamel face, one red needle. No gradients on the face.
-   Anti-goal: A flat dashboard widget. Anything that looks drawn in Figma defaults.
+   Three needles on one dial — the app's actual subject, stated literally.
+   Personality: The same machined dial, carrying three readings at once.
+   Cream face, three needles in account colours, no coloured arc.
+   Anti-goal: A clock. Three hands on a round face is a very short trip to one.
 
    TYPE: none. An app icon carries no text, so the "named type" slot of
    the thesis header does not apply — the register is carried entirely by
    silhouette, weight and colour.
-   ==================================================================
-
-   Chosen from docs/mockups/ (this file is 01-instrument-cream.html with
-   vmin sizing swapped for fixed pixels). Rendered by build-app.sh --icon:
-
-     chrome --headless --screenshot --window-size=1024,1024
-            --force-device-scale-factor=2      => a 2048px master
-
-   1024 canvas with an 824 tile leaves a 100px transparent margin, which is
-   Apple's macOS icon grid — the system draws its drop shadow there, so it
-   must stay empty. */
+   ================================================================== */
   html,body{margin:0;background:transparent}
-  body{width:1024px;height:1024px;display:grid;place-items:center}
-  #tile{width:824px;height:824px;border-radius:184px;position:relative;overflow:hidden;
+  body{width:100vw;height:100vh;display:grid;place-items:center}
+  #tile{width:80.5vmin;height:80.5vmin;border-radius:17.9vmin;position:relative;overflow:hidden;
     background:linear-gradient(168deg,#EFE6D6,#DCCDB6);box-shadow:inset 0 5px 0 rgba(255,255,255,.7),inset 0 -4px 0 rgba(0,0,0,.18)}
   svg{position:absolute;inset:0;width:100%;height:100%}
 </style>
@@ -47,9 +37,9 @@ const ticks=(A0,A1,R,cx,cy,col,n=10)=>{for(let i=0;i<=n;i++){const a=A0+(A1-A0)*
   const CY=452,R=250,A0=150,A1=390;
   add("circle",{cx:412,cy:CY,r:R+62,fill:"#1C1714"});
   add("circle",{cx:412,cy:CY,r:R+40,fill:"#F6EEE0"});
-  add("path",{d:arc(A0,A1,R,412,CY),fill:"none",stroke:"#2A2320","stroke-width":26,"stroke-linecap":"round"});
-  add("path",{d:arc(A0+(A1-A0)*.78,A1,R,412,CY),fill:"none",stroke:"#D14A32","stroke-width":26,"stroke-linecap":"round"});
+  add("path",{d:arc(A0,A1,R,412,CY),fill:"none",stroke:"#2A2320","stroke-width":22,"stroke-linecap":"round"});
   ticks(A0,A1,R,412,CY,"#2A2320");
-  needle(A0+(A1-A0)*.72,412,CY,R-34,44,"#D14A32");
+  [[.22,"#2F8F5B"],[.55,"#E0A21B"],[.93,"#D14A32"]].forEach(([v,c])=>
+    needle(A0+(A1-A0)*v,412,CY,R-34,26,c));
   add("circle",{cx:412,cy:CY,r:56,fill:"#1C1714"}); add("circle",{cx:412,cy:CY,r:26,fill:"#F6EEE0"});
 </script>

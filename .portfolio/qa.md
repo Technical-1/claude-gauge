@@ -134,16 +134,24 @@ contribution, because an odometer measures what was spent, not what still exists
   discovery cannot tell a retired root from an active one, but a human can — so
   the program makes the guess once and the user owns the answer.
 
-### An icon authored in HTML rather than SVG
-- **Constraint**: The app needed an icon, and the artwork is a gauge with a
-  gradient arc, tick marks and a needle — all positioned trigonometrically.
+### An icon authored in HTML, and judged at 32px
+- **Constraint**: The app needed an icon. The artwork is a gauge — an arc, ten
+  tick positions and a needle, all placed trigonometrically — and it has to hold
+  up from 1024px down to 32.
 - **Options**: Hand-write SVG path data; use a vector editor; or generate it.
-- **Choice**: An HTML file that computes the geometry in JavaScript, rasterised at
-  2048px by headless Chrome and downsampled into an `.iconset`.
-- **Why**: The arc endpoints and twenty tick positions are calculated, not drawn.
-  Writing them as code means changing the needle position is editing one constant,
-  and the source stays reviewable — an SVG with the same content is a wall of
-  precomputed coordinates that cannot be adjusted without recomputing them.
+- **Choice**: An HTML file that computes the geometry in JavaScript, rasterised
+  at 2048px by headless Chrome and downsampled into an `.iconset`.
+- **Why**: The arc endpoints and tick positions are calculated, not drawn, so
+  writing them as code means changing the needle position is editing one
+  constant — an SVG with the same content is a wall of precomputed coordinates
+  that cannot be adjusted without recomputing them. Cheap iteration also made the
+  real lesson findable: the first icon was dark elements on a dark ground with
+  4px strokes, which have no silhouette below 128px, and a mark with no
+  silhouette cannot carry a personality however it is styled. Inverting to
+  dark-on-cream is what fixed it. Candidates must be compared by *rendering* at
+  32px rather than downscaling a large bitmap — downscaling blurs a thin stroke,
+  rendering drops it, so a bitmap comparison flatters designs that will not
+  survive.
 
 ## Frequently Asked Questions
 

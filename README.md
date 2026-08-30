@@ -334,10 +334,11 @@ The icon is authored as HTML and rasterised at 2048px by headless Chrome, then
 downsampled into an `.iconset`. The gauge geometry is computed rather than drawn,
 so moving the needle is editing one constant.
 
-Directions were explored as standalone files in `docs/mockups/`, each carrying a
-thesis header, and compared at 256/128/64/32px — small sizes decide an icon, and
-live rendering at 32px *drops* thin strokes where a downscaled bitmap merely
-blurs them. `assets/icon.html` is the chosen one with fixed-pixel sizing.
+Judge an icon by rendering it live at 32 and 64px, not by downscaling a large
+bitmap. Downscaling *blurs* a thin stroke; rendering at 32px **drops** it, so a
+bitmap comparison flatters designs that will not survive. Contrast direction
+matters more than detail at those sizes — dark-on-light keeps a silhouette that
+dark-on-dark loses entirely.
 
 ## Project Structure
 

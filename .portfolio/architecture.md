@@ -195,37 +195,28 @@ flowchart TD
   since several sessions can share one working directory with no way to tell
   which process owns which file. tty is exact and needs no heuristics.
 
-### Choosing which windows to display, by identity and by meaning
-- **Context**: The response reports some limits twice under different names, and
-  carries several undocumented keys that have always read zero alongside
-  per-model caps that are usually zero. Shown raw, that is seven rows per account
-  where two matter.
-- **Decision**: Collapse duplicates through an explicit alias map, and treat two
-  core windows as always-visible while every other window is hidden at 0% and
-  appears the moment it carries a value.
-- **Rationale**: The tempting dedup rule is "merge rows with the same value and
-  reset time" — but two unrelated limits currently share a value (both zero) and
-  would merge today, then split apart the moment one becomes non-zero, so rows
-  would appear and vanish between refreshes. Identity is stable; value is not.
-  The visibility rule is likewise not "hide zeros" but "hide zeros that say
-  nothing": 0% on a core window means full headroom, which is exactly what the
-  reader opened the menu to learn. An allow-list of two also beats a deny-list of
-  six, since an undocumented key nobody has seen yet behaves correctly without
-  being enumerated first.
-
-### Measuring the rate on the window that can move
-- **Context**: A burn rate needs a series to difference, and the app tracks
-  several quota windows per account.
-- **Decision**: The history samples `five_hour` specifically, and the projection
-  is withheld when the window resets before the projected exhaustion.
-- **Rationale**: The obvious basis is the *worst* window, since that drives the
-  headline. It fails on exactly the account that matters: with a weekly pinned at
-  100%, the worst window is flat *because it is at the ceiling*, so the rate
-  reports nothing while the five-hour climbs unseen. The five-hour is also the
-  only window that moves fast enough for a fifteen-minute sample to mean anything.
-  Separately, an account rising 10%/hr whose window resets in 44 minutes was being
-  told it would be "full in 7h 52m" — a wall it can never reach, because the
-  window empties first. A projection that a reset cancels is worse than none.
+### Picking the right window for each job
+- **Context**: The response carries several quota windows per account, reported
+  inconsistently: some appear twice under different names, several undocumented
+  keys have always read zero, and per-model caps are usually zero. Two separate
+  questions have to be answered from that set — which windows to *show*, and
+  which window a burn *rate* should be measured on.
+- **Decision**: For display, collapse duplicates through an explicit alias map,
+  keep two core windows always visible, and hide every other window at 0% until
+  it carries a value. For the rate, sample the five-hour window specifically —
+  not the worst one — and withhold the exhaustion projection when the window
+  resets before it.
+- **Rationale**: Both obvious answers are wrong in the same way — they use a
+  property that happens to correlate rather than the one that means something.
+  Deduplicating on *value* would merge two unrelated limits that both read zero
+  today and split them apart the moment one moved, so rows would appear and
+  vanish between refreshes; identity is stable, value is not. Rating the *worst*
+  window fails on exactly the account that matters, because a weekly pinned at
+  100% is flat only by virtue of being at the ceiling, hiding a five-hour that is
+  climbing. And a projection past the reset describes a wall the reset cancels.
+  Visibility follows the same test: the rule is not "hide zeros" but "hide zeros
+  that say nothing", since 0% on a core window means full headroom — the thing
+  the reader opened the menu to learn.
 
 ### An incremental odometer rather than a repeated full scan
 - **Context**: A lifetime token total needs every transcript ever written —

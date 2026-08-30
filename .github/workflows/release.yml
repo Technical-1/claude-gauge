@@ -65,7 +65,9 @@ jobs:
           export APPLE_API_KEY_PATH="$RUNNER_TEMP/key.p8"
           echo "$APPLE_API_KEY_B64" | base64 --decode > "$APPLE_API_KEY_PATH"
           trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
-          ./build-app.sh --universal --icon
+          # No --icon: rendering it needs Chrome and ImageMagick, which the
+          # runners do not have. assets/icon.icns is committed and is what ships.
+          ./build-app.sh --universal
 
       - name: Verify the artifact the way a user receives it
         run: |

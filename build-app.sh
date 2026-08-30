@@ -26,7 +26,13 @@ BUNDLE_ID="com.technical1.claude-gauge"
 #
 # Read, never echoed. Everything under ~/.apple-signing/ may be substituted
 # into a command but must not be printed.
-read_secret() { [ -f "$HOME/.apple-signing/$1" ] && cat "$HOME/.apple-signing/$1"; }
+# The `if` form matters: `[ -f x ] && cat x` returns 1 when the file is absent,
+# and under `set -e` that kills the script inside a ${VAR:-$(read_secret ...)}
+# substitution before anything is printed. Absent is not an error here — it just
+# means fall through to the next source.
+read_secret() {
+  if [ -f "$HOME/.apple-signing/$1" ]; then cat "$HOME/.apple-signing/$1"; fi
+}
 
 IDENTITY="${SIGN_IDENTITY:-$(read_secret APPLE_SIGNING_IDENTITY)}"
 PROFILE="${NOTARY_PROFILE:-$(read_secret APPLE_NOTARY_PROFILE)}"

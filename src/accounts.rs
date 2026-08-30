@@ -169,6 +169,35 @@ fn burn_for(e: &crate::cache::Entry, now: i64) -> Option<(f64, Option<i64>)> {
     Some((rate, eta))
 }
 
+/// A cached window whose reset has already passed has refilled, so its stored
+/// percentage is wrong — and wrong in the one direction that hurts.
+///
+/// Everywhere else a stale reading is conservative: an idle account only
+/// recovers quota, so an old number over-states usage and can never send you
+/// somewhere already exhausted. Once the reset passes, that protection inverts —
+/// the account is now empty and a stale 100% steers you away from the very
+/// account you should be using.
+///
+/// This is the one number the app displays without having measured it, so the
+/// conditions are deliberately narrow. It applies ONLY when serving a reading
+/// because the token expired: an expired token means the account is idle — that
+/// is why the token lapsed — so nothing consumed the window after it refilled.
+/// It is NOT applied during a rate-limit backoff, where the account may be in
+/// active use and could have burned through the new window already.
+///
+/// `resets_at` is cleared with it. The window's next reset is unknown, and
+/// showing the old one would be a countdown to a moment that has passed.
+fn zero_reset_windows(st: &mut AccountStatus, now: i64) {
+    if let State::Ok(windows) = &mut st.state {
+        for w in windows.iter_mut() {
+            if w.resets_at.is_some_and(|t| t.timestamp() <= now) {
+                w.pct = 0.0;
+                w.resets_at = None;
+            }
+        }
+    }
+}
+
 fn from_cache(root: &Root, e: &crate::cache::Entry, now: i64) -> AccountStatus {
     let mut st = status(&root.label, State::Ok(e.windows.clone()), e.age(now));
     st.burn = burn_for(e, now);
@@ -243,6 +272,7 @@ fn poll_inner(root: &Root, force: bool) -> AccountStatus {
                 if entry.has_data() {
                     let mut st = from_cache(root, &entry, now);
                     st.expired_secs = Some(now - exp / 1000);
+                    zero_reset_windows(&mut st, now);
                     return st;
                 }
                 return status(&root.label, State::Expired { hours_ago }, 0);

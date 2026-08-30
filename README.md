@@ -152,6 +152,18 @@ The last good reading is shown instead, with its age in the dropdown. That is co
 number over-states usage — it can say an account is fuller than it is, never
 emptier, so it will not send you somewhere already exhausted.
 
+**A window whose reset has passed reads 0%.** Everywhere else a stale reading
+is conservative, but once the reset passes that protection inverts: the window
+has refilled, so a stale `100%` steers you away from the very account you should
+be using. An expired token means the account is idle — that is why the token
+lapsed — so nothing consumed the window after it refilled, and the reset time is
+cleared with the value since the next one is unknown.
+
+This is the only number the app shows without having measured it, so the
+conditions are narrow. It is **not** applied during a 429 backoff, where the
+account may be in active use and could already have burned through the new
+window.
+
 It carries **no** stale marker, unlike a 429 backoff. An expired token means
 the account is idle by definition — that is why the token lapsed — so the number
 has not moved and flagging it would be noise. A backoff is different: that

@@ -86,7 +86,12 @@ fn title(statuses: &[AccountStatus]) -> String {
             // already decided to look, and it doubled the width of every field.
             match (&s.state, s.worst()) {
                 (State::Ok(_), Some(w)) => {
-                    let stale = if s.age_s > STALE_AFTER_S || s.expired_secs.is_some() {
+                    // No stale marker for an expired token. The account is
+                    // idle by definition — that is why the token lapsed — so the
+                    // number has not moved and flagging it would be noise. The
+                    // marker is kept for a 429 backoff, where the account may be
+                    // in active use and the reading really can be out of date.
+                    let stale = if s.age_s > STALE_AFTER_S && s.expired_secs.is_none() {
                         "~"
                     } else {
                         ""
@@ -194,7 +199,7 @@ fn account_lines(s: &AccountStatus, sessions: Option<&[sessions::Session]>) -> V
             // different fixes — so they must not read the same.
             match (s.expired_secs, s.age_s > STALE_AFTER_S) {
                 (Some(secs), _) => out.push(format!(
-                    "      last reading {} ago · token expired {} ago — open this account",
+                    "      last reading {} ago · token expired {} ago",
                     ago(s.age_s),
                     ago(secs)
                 )),

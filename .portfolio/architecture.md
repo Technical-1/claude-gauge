@@ -2,7 +2,7 @@
 
 A single-binary macOS menubar app. No server, no database, no background daemon
 beyond the app itself — all state is a handful of JSON files under
-`~/.config/claude-usage/`.
+`~/.config/claude-gauge/`.
 
 ## System Diagram
 

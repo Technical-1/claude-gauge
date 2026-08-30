@@ -35,7 +35,7 @@ struct State {
 }
 
 fn state_file() -> PathBuf {
-    crate::accounts::dirs_home().join(".config/claude-usage/odometer.json")
+    crate::accounts::dirs_home().join(".config/claude-gauge/odometer.json")
 }
 
 fn load() -> State {

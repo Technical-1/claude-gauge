@@ -195,6 +195,6 @@ than a PID file, so it cannot go stale — the kernel releases it even if the ap
 force-quit.
 
 ### How do I add or remove an account?
-Edit `~/.config/claude-usage/roots.json`. It is seeded on first run from whatever
+Edit `~/.config/claude-gauge/roots.json`. It is seeded on first run from whatever
 config directories exist and is never rewritten afterwards, so entries you delete
 stay deleted.

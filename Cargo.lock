@@ -163,7 +163,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "claude-usage"
+name = "claude-gauge"
 version = "1.0.0"
 dependencies = [
  "chrono",

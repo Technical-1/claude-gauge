@@ -301,7 +301,7 @@ fn poll_inner(root: &Root, force: bool) -> AccountStatus {
                         if entry.was_walled && worst < FREED_PCT {
                             entry.was_walled = false;
                             crate::notify::post(
-                                "Claude Usage",
+                                "Claude Gauge",
                                 &format!("{} is available again — now at {:.0}%", root.label, worst),
                             );
                         } else if !entry.was_walled && worst >= WALLED_PCT {
@@ -394,14 +394,14 @@ fn discover(home: &Path) -> Vec<Root> {
         .collect()
 }
 
-/// Accounts to show, from `~/.config/claude-usage/roots.json`, created on first run.
+/// Accounts to show, from `~/.config/claude-gauge/roots.json`, created on first run.
 ///
 /// A config file rather than pure discovery: retired roots often still exist on
 /// disk, and a meter that lists dead accounts trains you to ignore it. Discovery
 /// seeds the file on first run; after that you edit it and it is left alone.
 pub fn load_roots() -> Vec<Root> {
     let home = dirs_home();
-    let cfg_dir = home.join(".config/claude-usage");
+    let cfg_dir = home.join(".config/claude-gauge");
     let cfg = cfg_dir.join("roots.json");
 
     if let Ok(txt) = std::fs::read_to_string(&cfg)

@@ -99,7 +99,7 @@ impl Entry {
 }
 
 fn dir() -> PathBuf {
-    crate::accounts::dirs_home().join(".config/claude-usage/cache")
+    crate::accounts::dirs_home().join(".config/claude-gauge/cache")
 }
 
 /// Keyed by the ROOT PATH, never by the label.

@@ -69,8 +69,8 @@ jobs:
 
       - name: Verify the artifact the way a user receives it
         run: |
-          APP="dist/Claude Usage.app"
-          lipo -archs "$APP/Contents/MacOS/claude-usage"
+          APP="dist/Claude Gauge.app"
+          lipo -archs "$APP/Contents/MacOS/claude-gauge"
           codesign --verify --deep --strict --verbose=2 "$APP"
           xcrun stapler validate "$APP"
           spctl --assess --type install --verbose "$APP"
@@ -85,8 +85,8 @@ jobs:
             echo "Not a tag — build verified, nothing published."
             exit 0
           fi
-          gh release create "$TAG" dist/Claude-Usage-*.zip \
-            --title "Claude Usage $TAG" \
+          gh release create "$TAG" dist/Claude-Gauge-*.zip \
+            --title "Claude Gauge $TAG" \
             --notes "Signed, notarized and stapled. Universal (Apple Silicon and Intel).
 
           Download the zip, unzip, and drag to Applications." \

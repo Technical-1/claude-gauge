@@ -23,7 +23,7 @@ pub struct Guard(#[allow(dead_code)] File);
 /// `Ok(guard)` — we are the only instance.
 /// `Err(())`  — another instance already holds the lock.
 pub fn acquire() -> Result<Guard, ()> {
-    let dir = crate::accounts::dirs_home().join(".config/claude-usage");
+    let dir = crate::accounts::dirs_home().join(".config/claude-gauge");
     let _ = std::fs::create_dir_all(&dir);
     let Ok(f) = File::create(dir.join("instance.lock")) else {
         // Cannot lock at all — fail open, see CLASS note above.

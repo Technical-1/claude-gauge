@@ -10,7 +10,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-const LABEL: &str = "com.technical1.claude-usage";
+const LABEL: &str = "com.technical1.claude-gauge";
 
 fn plist_path() -> PathBuf {
     crate::accounts::dirs_home().join(format!("Library/LaunchAgents/{LABEL}.plist"))

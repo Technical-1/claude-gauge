@@ -1,4 +1,4 @@
-//! claude-usage — a macOS menubar meter for several Claude Code accounts at once.
+//! claude-gauge — a macOS menubar meter for several Claude Code accounts at once.
 //!
 //! Each Claude Code config root is a separate account with a separate quota pool,
 //! and nothing in the product shows you all of them together: the in-session
@@ -120,13 +120,13 @@ fn title(statuses: &[AccountStatus]) -> String {
 /// would not appear at all.
 fn about_item() -> PredefinedMenuItem {
     PredefinedMenuItem::about(
-        Some("About Claude Usage"),
+        Some("About Claude Gauge"),
         Some(AboutMetadata {
-            name: Some("Claude Usage".into()),
+            name: Some("Claude Gauge".into()),
             version: Some(env!("CARGO_PKG_VERSION").into()),
             copyright: Some("\u{00a9} 2026 Jacob Kanfer".into()),
             credits: Some(
-                "Jacob Kanfer\ngithub.com/Technical-1/claude-usage\n\n\
+                "Jacob Kanfer\ngithub.com/Technical-1/claude-gauge\n\n\
                  Quota meter for multiple Claude Code accounts.\n\
                  Read-only: never writes to the Keychain."
                     .into(),
@@ -483,7 +483,7 @@ fn poll_all_forced(roots: &[accounts::Root]) -> Vec<AccountStatus> {
 fn main() {
     let roots = accounts::load_roots();
     if roots.is_empty() {
-        eprintln!("no roots configured in ~/.config/claude-usage/roots.json");
+        eprintln!("no roots configured in ~/.config/claude-gauge/roots.json");
         std::process::exit(1);
     }
 
@@ -518,7 +518,7 @@ fn main() {
         println!("Tokens all time      ↑ {}   ↓ {}",
                  tokens::human(odo.input), tokens::human(odo.output));
         println!("{}", "-".repeat(46));
-        println!("Refresh now\nStart at login\nAbout Claude Usage\n\nQuit");
+        println!("Refresh now\nStart at login\nAbout Claude Gauge\n\nQuit");
         return;
     }
 
@@ -551,8 +551,8 @@ fn main() {
     let _guard = match instance::acquire() {
         Ok(g) => g,
         Err(()) => {
-            notify::post("Claude Usage", "Claude Usage is already running.");
-            eprintln!("claude-usage is already running");
+            notify::post("Claude Gauge", "Claude Gauge is already running.");
+            eprintln!("claude-gauge is already running");
             return;
         }
     };
@@ -645,9 +645,9 @@ fn main() {
                 let want = !autostart::is_enabled();
                 let r = if want { autostart::enable() } else { autostart::disable() };
                 match r {
-                    Ok(()) if want => notify::post("Claude Usage", "Will start at login."),
-                    Ok(()) => notify::post("Claude Usage", "Will no longer start at login."),
-                    Err(e) => notify::post("Claude Usage", &format!("Could not change it: {e}")),
+                    Ok(()) if want => notify::post("Claude Gauge", "Will start at login."),
+                    Ok(()) => notify::post("Claude Gauge", "Will no longer start at login."),
+                    Err(e) => notify::post("Claude Gauge", &format!("Could not change it: {e}")),
                 }
                 *dirty.lock().unwrap() = true;
             }
@@ -656,7 +656,7 @@ fn main() {
             // otherwise look like a dead menu item.
             if let Some(tty) = handles.raise_map.get(&ev.id)
                 && let Err(e) = terminal::raise(tty) {
-                    notify::post("Claude Usage", &e);
+                    notify::post("Claude Gauge", &e);
                 }
         }
 

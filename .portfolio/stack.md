@@ -20,7 +20,7 @@
   each costs: sessions every 60s (local calls only), quota every 300s (the only
   thing spending requests), and a one-shot thread for the odometer's first
   full-corpus pass so the menubar is never held up by it
-- **Persistence**: JSON files under `~/.config/claude-usage/`
+- **Persistence**: JSON files under `~/.config/claude-gauge/`
 - **Windows**: None. The app creates no window; the About panel is the system's own
 
 ## System Integration

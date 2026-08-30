@@ -41,7 +41,7 @@ pub struct Session {
 }
 
 impl Session {
-    /// "◐ claude-usage — Handoff doc and menu bar app"
+    /// "◐ claude-gauge — Handoff doc and menu bar app"
     ///
     /// Claude's title already begins with a status glyph (✳ idle, ◐/◑ working),
     /// so it is lifted to the front rather than left stranded mid-string after

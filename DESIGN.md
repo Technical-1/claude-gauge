@@ -107,7 +107,7 @@ new limit the API starts returning must surface rather than be silently dropped.
        Weekly       1%   ↻ 23h 48m
  ────────────────────────────────────────────────
  Refresh now
- About Claude Usage
+ About Claude Gauge
  Quit
 ```
 
@@ -139,7 +139,7 @@ No network cost. Refreshed on the same 300s tick as everything else.
 
 ## Single-instance guard (P6)
 
-`flock` on `~/.config/claude-usage/instance.lock`. If the lock is held, exit
+`flock` on `~/.config/claude-gauge/instance.lock`. If the lock is held, exit
 immediately rather than adding a second menubar item.
 
 Note this is *defence in depth*, not the primary rate-limit fix: because the
@@ -147,7 +147,7 @@ cache lives on disk, a second instance already costs ~0 extra requests (observed
 2026-08-29 — a second copy started 26s after the first and spent zero). The guard
 is about the confusing UI, not the request budget.
 
-Notifies "Claude Usage is already running", then exits.
+Notifies "Claude Gauge is already running", then exits.
 
 ## Gap 1 — the non-OK states have no ASCII design
 

@@ -1,4 +1,4 @@
-# claude-usage
+# claude-gauge
 
 A macOS menubar meter for **several Claude Code accounts at once**.
 
@@ -78,10 +78,10 @@ from `~/.apple-signing/`, or from `SIGN_IDENTITY` / `NOTARY_PROFILE` if set:
 ### Usage
 
 ```sh
-./target/release/claude-usage            # menubar app
-./target/release/claude-usage --list     # headless table, then exit
-./target/release/claude-usage --title    # the menubar string, then exit
-./target/release/claude-usage --menu     # the dropdown's exact text, then exit
+./target/release/claude-gauge            # menubar app
+./target/release/claude-gauge --list     # headless table, then exit
+./target/release/claude-gauge --title    # the menubar string, then exit
+./target/release/claude-gauge --menu     # the dropdown's exact text, then exit
 ```
 
 The headless modes share the same cache as the app, so they cost no requests
@@ -90,7 +90,7 @@ single-instance.
 
 ## Configuration
 
-`~/.config/claude-usage/roots.json`, seeded on first run by discovering `~/.claude`
+`~/.config/claude-gauge/roots.json`, seeded on first run by discovering `~/.claude`
 and any `~/.claude-*` directory carrying a `projects/` folder or a `settings.json`:
 
 ```json
@@ -195,10 +195,10 @@ requests per hour per account, with no backoff, so one 429 sustained itself.
 | Stale-serving | A 429 shows the last good value with `~` rather than blanking. |
 | Stagger | 400ms between accounts, skipped entirely on cache hits. |
 
-Caches live in `~/.config/claude-usage/cache/`, keyed by `sha256(path)[..8]` —
+Caches live in `~/.config/claude-gauge/cache/`, keyed by `sha256(path)[..8]` —
 **never by label**, since labels are user-editable and remapping one would
 re-point another account's history and notification state. Every request actually
-spent is appended to `~/.config/claude-usage/requests.log`.
+spent is appended to `~/.config/claude-gauge/requests.log`.
 
 ## The dropdown
 
@@ -334,7 +334,7 @@ The bottom of the menu carries a lifetime total across every account:
 Tokens all time      ↑ 2.1B   ↓ 291.7M
 ```
 
-Transcripts are append-only, so it is incremental: `~/.config/claude-usage/odometer.json`
+Transcripts are append-only, so it is incremental: `~/.config/claude-gauge/odometer.json`
 records how far into each transcript has already been counted, and later passes
 read only the newly appended bytes. Measured: 5.4s for the first full pass over
 8,400 files, 0.6s thereafter. The first pass runs on its own thread so the
@@ -360,7 +360,7 @@ relaunches the app the instant Quit calls `exit(0)`, which makes Quit look broke
 ```sh
 cargo build --release          # build
 cargo clippy --release         # lint (clean at default level)
-./target/release/claude-usage --menu    # verify the dropdown without a GUI
+./target/release/claude-gauge --menu    # verify the dropdown without a GUI
 ./build-app.sh --icon          # re-render assets/icon.icns from assets/icon.html
 ```
 
@@ -377,7 +377,7 @@ dark-on-dark loses entirely.
 ## Project Structure
 
 ```
-claude-usage/
+claude-gauge/
 ├── src/
 │   ├── main.rs         # tray, menu, event loop, headless modes
 │   ├── accounts.rs     # config roots, Keychain, poll orchestration

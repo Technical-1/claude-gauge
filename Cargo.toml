@@ -1,10 +1,10 @@
 [package]
-name = "claude-usage"
+name = "claude-gauge"
 version = "1.0.0"
 edition = "2024"
 authors = ["Jacob Kanfer"]
 description = "macOS menubar quota meter for several Claude Code accounts at once"
-repository = "https://github.com/Technical-1/claude-usage"
+repository = "https://github.com/Technical-1/claude-gauge"
 license = "MIT"
 readme = "README.md"
 keywords = ["macos", "menubar", "quota", "tray"]

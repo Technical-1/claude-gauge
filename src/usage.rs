@@ -29,7 +29,7 @@ pub enum FetchError {
 /// exactly how many requests went out, when, and what came back.
 pub fn log_request(label: &str, outcome: &str) {
     use std::io::Write;
-    let dir = crate::accounts::dirs_home().join(".config/claude-usage");
+    let dir = crate::accounts::dirs_home().join(".config/claude-gauge");
     let _ = std::fs::create_dir_all(&dir);
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)

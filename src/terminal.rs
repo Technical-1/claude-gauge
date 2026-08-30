@@ -11,7 +11,7 @@
 //! project folder" breaks exactly where it matters — several sessions can share
 //! one cwd, with no way to tell which pid owns which file.
 //!
-//! Requires macOS Automation permission ("Claude Usage wants to control
+//! Requires macOS Automation permission ("Claude Gauge wants to control
 //! Terminal"). Denial is reported, never silent.
 //!
 //! CLASS: sensor for `titles`, actuator for `raise`. Neither may panic.

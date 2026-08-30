@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build, sign, notarize and staple Claude Usage.app.
+# Build, sign, notarize and staple Claude Gauge.app.
 #
 #   ./build-app.sh              full pipeline
 #   ./build-app.sh --no-sign    bundle only, unsigned — for local iteration
@@ -13,8 +13,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_NAME="Claude Usage"
-BUNDLE_ID="com.technical1.claude-usage"
+APP_NAME="Claude Gauge"
+BUNDLE_ID="com.technical1.claude-gauge"
 # Signing identity and notary profile, in precedence order:
 #   1. SIGN_IDENTITY / NOTARY_PROFILE in the environment
 #   2. ~/.apple-signing/, the machine-local credential store
@@ -30,7 +30,7 @@ read_secret() { [ -f "$HOME/.apple-signing/$1" ] && cat "$HOME/.apple-signing/$1
 
 IDENTITY="${SIGN_IDENTITY:-$(read_secret APPLE_SIGNING_IDENTITY)}"
 PROFILE="${NOTARY_PROFILE:-$(read_secret APPLE_NOTARY_PROFILE)}"
-PROFILE="${PROFILE:-claude-usage}"
+PROFILE="${PROFILE:-claude-gauge}"
 VERSION="$(awk -F'"' '/^version =/{print $2; exit}' Cargo.toml)"
 
 APP="dist/${APP_NAME}.app"
@@ -103,21 +103,21 @@ if [ "$UNIVERSAL" = 1 ]; then
   cargo build --release --target aarch64-apple-darwin
   cargo build --release --target x86_64-apple-darwin
   mkdir -p target/universal
-  lipo -create -output target/universal/claude-usage \
-    target/aarch64-apple-darwin/release/claude-usage \
-    target/x86_64-apple-darwin/release/claude-usage
-  BIN=target/universal/claude-usage
+  lipo -create -output target/universal/claude-gauge \
+    target/aarch64-apple-darwin/release/claude-gauge \
+    target/x86_64-apple-darwin/release/claude-gauge
+  BIN=target/universal/claude-gauge
 else
   say "Building release binary (v$VERSION, this machine's architecture only)"
   cargo build --release
-  BIN=target/release/claude-usage
+  BIN=target/release/claude-gauge
 fi
 
 # ── bundle ──────────────────────────────────────────────────────────────────
 say "Assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/claude-usage"
+cp "$BIN" "$APP/Contents/MacOS/claude-gauge"
 cp assets/icon.icns            "$APP/Contents/Resources/icon.icns"
 
 # LSUIElement duplicates the runtime ActivationPolicy::Accessory call on purpose:
@@ -130,7 +130,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key>                  <string>${APP_NAME}</string>
   <key>CFBundleDisplayName</key>           <string>${APP_NAME}</string>
   <key>CFBundleIdentifier</key>            <string>${BUNDLE_ID}</string>
-  <key>CFBundleExecutable</key>            <string>claude-usage</string>
+  <key>CFBundleExecutable</key>            <string>claude-gauge</string>
   <key>CFBundleIconFile</key>              <string>icon</string>
   <key>CFBundlePackageType</key>           <string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key> <string>6.0</string>
@@ -160,7 +160,7 @@ if [ -z "$IDENTITY" ]; then
 fi
 say "Signing"
 codesign --force --options runtime --timestamp \
-  --sign "$IDENTITY" "$APP/Contents/MacOS/claude-usage"
+  --sign "$IDENTITY" "$APP/Contents/MacOS/claude-gauge"
 codesign --force --options runtime --timestamp \
   --sign "$IDENTITY" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
